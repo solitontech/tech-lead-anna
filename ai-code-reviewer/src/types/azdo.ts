@@ -76,6 +76,9 @@ export interface AzDoIteration {
     author: any;
     createdDate: string;
     updatedDate: string;
+    sourceRefCommit: {
+        commitId: string;
+    };
 }
 
 export interface AzDoIterationsResponse {

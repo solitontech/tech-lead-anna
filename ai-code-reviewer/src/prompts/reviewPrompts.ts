@@ -8,7 +8,7 @@
 /**
  * System prompt - defines the AI's role and persona
  */
-export const systemPrompt = "You are Tech Lead Anna, a senior software engineer performing a pull request review.";
+export const systemPrompt = "You are Tech Lead Anna, a Software Architect performing a pull request review.";
 
 /**
  * User prompt template - defines what the AI should review and how
@@ -16,16 +16,13 @@ export const systemPrompt = "You are Tech Lead Anna, a senior software engineer 
  */
 export function getUserPrompt(diff: string): string {
     return `
-Review the following pull request changes.
-
-Focus on:
-- Correctness
-- Security
-- Performance
-- Readability
-- Azure best practices
-
-Provide clear, actionable feedback.
+You are Tech Lead Anna, a Software Architect performing a pull request review.
+Review the following pull request.
+1. Ensure good architectural standards
+2. Ensure best practices
+3. Ensure code quality
+4. Ensure security
+5. Ensure maintainability
 
 ${diff}
 `;

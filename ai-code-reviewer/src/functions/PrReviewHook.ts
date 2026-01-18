@@ -13,6 +13,25 @@ const azdo = axios.create({
     }
 });
 
+// Logging interceptor for debugging 404s
+azdo.interceptors.request.use(config => {
+    console.log(`[AzDo API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    return config;
+});
+
+azdo.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response) {
+            console.error(`[AzDo API Error] Status: ${error.response.status}`);
+            console.error(`[AzDo API Error] Resource: ${error.config.url}`);
+            console.error(`[AzDo API Error] Data:`, error.response.data);
+        }
+        return Promise.reject(error);
+    }
+);
+
+
 /* ---------- OpenAI client ---------- */
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -41,7 +60,7 @@ app.http("PrReviewHook", {
 
         context.log(`Reviewing PR ${prId} in project ${project}`);
 
-        const diff = await getPullRequestDiff(project, repoId, prId);
+        const diff = await getPullRequestDiff(project, repoId, prId, context);
         const review = await reviewWithAI(diff);
         await postReview(project, repoId, prId, review);
 
@@ -54,41 +73,52 @@ app.http("PrReviewHook", {
 async function getPullRequestDiff(
     project: string,
     repoId: string,
-    prId: number
+    prId: number,
+    context: InvocationContext
 ): Promise<string> {
 
     const iterationsRes = await azdo.get<AzDoIterationsResponse>(
         `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations?api-version=7.1`
     );
 
-    const latestIterationId = iterationsRes.data.value.slice(-1)[0].id;
+    const latestIteration = iterationsRes.data.value.slice(-1)[0];
+    const latestIterationId = latestIteration.id;
+    const commitId = latestIteration.sourceRefCommit.commitId;
 
-    const changesRes = await azdo.get<AzDoChangesResponse>(
+    console.log(`Fetching changes for iteration ${latestIterationId} (Commit: ${commitId})...`);
+    const changesRes = await azdo.get<any>(
         `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations/${latestIterationId}/changes?api-version=7.1`
     );
 
+    const changes = changesRes.data.changes ||
+        changesRes.data.value ||
+        changesRes.data.changeEntries ||
+        [];
+
     let combined = "";
 
-    for (const change of changesRes.data.changes) {
+    for (const change of changes) {
         if (change.item?.isFolder) continue;
 
         const path = change.item.path;
 
-        const fileRes = await azdo.get(
+        const fileRes = await azdo.get<string>(
             `/${project}/_apis/git/repositories/${repoId}/items`,
             {
                 params: {
                     path,
                     includeContent: true,
                     versionDescriptor: {
-                        versionType: "Branch",
-                        version: `refs/pull/${prId}/merge`
+                        versionType: "Commit",
+                        version: commitId
                     },
                     "api-version": "7.1"
-                }
+                },
+                responseType: 'text'
             }
         );
 
+        console.log(`Fetched ${path} (${fileRes.data.length} chars)`);
         combined += `\n\nFILE: ${path}\n${fileRes.data}`;
     }
 
