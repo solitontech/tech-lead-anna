@@ -108,7 +108,7 @@ async function getPullRequestDiff(
             continue;
         }
 
-        const fileRes = await azdo.get<string>(
+        const fileRes = await azdo.get<any>(
             `/${project}/_apis/git/repositories/${repoId}/items`,
             {
                 params: {
@@ -119,16 +119,18 @@ async function getPullRequestDiff(
                         version: commitId
                     },
                     "api-version": "7.1"
-                },
-                responseType: 'text'
+                }
             }
         );
 
-        console.log(`Fetched ${path} (${fileRes.data.length} chars)`);
+        const content = fileRes.data.content || "";
+        const lineCount = content.split('\n').length;
+        console.log(`Fetched ${path} (${lineCount} lines, ${content.length} chars)`);
 
-        const cleanedContent = cleanCodeContent(fileRes.data, path);
-        if (cleanedContent.length !== fileRes.data.length) {
-            console.log(`  Cleaned ${path}: ${fileRes.data.length} -> ${cleanedContent.length} chars`);
+        const cleanedContent = cleanCodeContent(content, path);
+        const cleanedLineCount = cleanedContent.split('\n').length;
+        if (cleanedContent.length !== content.length) {
+            console.log(`  Cleaned ${path}: ${lineCount} -> ${cleanedLineCount} lines (${cleanedContent.length} chars)`);
         }
 
         combined += `\n\nFILE: ${path}\n${cleanedContent}`;
