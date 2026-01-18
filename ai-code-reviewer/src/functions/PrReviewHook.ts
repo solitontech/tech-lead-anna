@@ -138,6 +138,8 @@ app.http("PrReviewHook", {
             } catch (err: any) {
                 context.log(`Error reviewing ${path}: ${err.message}`);
             }
+            // Add a small delay between files to avoid hitting TPM limits
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         return { status: 200 };
@@ -146,22 +148,34 @@ app.http("PrReviewHook", {
 
 /* ---------- Helpers ---------- */
 
-async function reviewWithAI(fileName: string, content: string): Promise<string> {
-    const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL!,
-        messages: [
-            {
-                role: "system",
-                content: systemPrompt
-            },
-            {
-                role: "user",
-                content: getUserPrompt(fileName, content)
-            }
-        ]
-    });
+async function reviewWithAI(fileName: string, content: string, attempt: number = 1): Promise<string> {
+    try {
+        const completion = await openai.chat.completions.create({
+            model: process.env.OPENAI_MODEL!,
+            messages: [
+                {
+                    role: "system",
+                    content: systemPrompt
+                },
+                {
+                    role: "user",
+                    content: getUserPrompt(fileName, content)
+                }
+            ]
+        });
 
-    return completion.choices[0].message.content ?? "LGTM";
+        return completion.choices[0].message.content ?? "LGTM";
+    } catch (err: any) {
+        // If Rate Limit (429) and we haven't tried too many times
+        if (err.status === 429 && attempt <= 3) {
+            const jitter = Math.floor(Math.random() * 1000); // Up to 1s jitter
+            const waitTime = (attempt * 2000) + jitter; // 2s + jitter, 4s + jitter...
+            console.log(`Rate limit hit for ${fileName}. Retrying in ${waitTime}ms... (Attempt ${attempt})`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            return reviewWithAI(fileName, content, attempt + 1);
+        }
+        throw err;
+    }
 }
 
 async function postReview(
