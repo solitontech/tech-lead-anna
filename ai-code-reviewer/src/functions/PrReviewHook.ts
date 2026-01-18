@@ -62,6 +62,9 @@ app.http("PrReviewHook", {
 
         context.log(`Reviewing PR ${prId} in project ${project} file by file`);
 
+        let hasRedFlags = false;
+        let hasIssues = false;
+
         const iterationsRes = await azdo.get<AzDoIterationsResponse>(
             `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations?api-version=7.1`
         );
@@ -119,12 +122,14 @@ app.http("PrReviewHook", {
 
                 let review: string;
                 if (cleanedLineCount > 1000) {
+                    hasRedFlags = true;
                     review = "⚠️ **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules to ensure maintainability and testability. A second round of review will be required after refactoring.";
                 } else {
                     review = await reviewWithAI(path, cleanedContent);
                 }
 
                 if (review.trim().toUpperCase() !== "LGTM") {
+                    hasIssues = true;
                     context.log(`Posting feedback for ${path}`);
                     await postReview(project, repoId, prId, path, review);
                 } else {

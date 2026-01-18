@@ -24,7 +24,11 @@ Ensure high code quality, good architectural standards & maintainability.
 
 Only comment on specific things that need to be changed or improved. 
 Do not include the original source code in your feedback.
-If the file looks good and follows best practices, respond with: "LGTM"
+
+For anything that is important & needs to be fixed, be firm in your tone, not suggestive
+But ignore minor suggestions or minor non-critical issues.
+
+If the file looks good just respond with: "LGTM" and nothing else.
 
 FILE CONTENT FOR ${fileName}:
 \`\`\`
