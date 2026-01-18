@@ -70,7 +70,7 @@ app.http("PrReviewHook", {
             return { status: 200 };
         }
 
-        // BREAK THE LOOP: If Anna has already voted, she has already reviewed this version of the code.
+        // If Anna has already voted, she has already reviewed this version of the code.
         if (annaCurrentVote !== 0) {
             context.log(`[IGNORE] Anna has already voted (${annaCurrentVote}). Skipping to prevent loop.`);
             return { status: 200 };
@@ -78,6 +78,14 @@ app.http("PrReviewHook", {
 
         const repoId = payload.resource.repository.id;
         const project = payload.resource.repository.project.name;
+
+        // Set a preliminary vote to 'lock' the PR and prevent race conditions from concurrent webhooks
+        try {
+            context.log(`[VOTE] Setting preliminary 'Waiting for Author' vote to lock the process.`);
+            await setPrVote(project, repoId, prId, annaReviewerId!, -5);
+        } catch (voteErr: any) {
+            context.log(`[VOTE] Failed to set preliminary vote: ${voteErr.message}`);
+        }
 
         context.log(`Reviewing PR ${prId} in project ${project} file by file`);
 
