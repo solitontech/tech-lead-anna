@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import axios from "axios";
 import OpenAI from "openai";
 import { systemPrompt, getUserPrompt } from "../prompts/reviewPrompts";
+import { shouldIgnoreFile } from "../config/ignoreFiles";
 import { AzDoWebhookPayload, AzDoIterationsResponse, AzDoChangesResponse, AzDoReviewer } from "../types/azdo";
 
 /* ---------- Azure DevOps client ---------- */
@@ -60,7 +61,7 @@ app.http("PrReviewHook", {
 
         context.log(`Reviewing PR ${prId} in project ${project}`);
 
-        const diff = await getPullRequestDiff(project, repoId, prId, context);
+        const diff = await getPullRequestDiff(project, repoId, prId);
         const review = await reviewWithAI(diff);
         await postReview(project, repoId, prId, review);
 
@@ -73,8 +74,7 @@ app.http("PrReviewHook", {
 async function getPullRequestDiff(
     project: string,
     repoId: string,
-    prId: number,
-    context: InvocationContext
+    prId: number
 ): Promise<string> {
 
     const iterationsRes = await azdo.get<AzDoIterationsResponse>(
@@ -102,18 +102,7 @@ async function getPullRequestDiff(
 
         const path = change.item.path;
 
-        // Skip non-code files and configuration that doesn't need architecture review
-        const ignoredFiles = [
-            'package.json',
-            'package-lock.json',
-            'yarn.lock',
-            'pnpm-lock.yaml',
-            'env.example',
-            '.gitignore',
-            '.funcignore'
-        ];
-
-        if (ignoredFiles.some(ignored => path.endsWith(ignored))) {
+        if (shouldIgnoreFile(path)) {
             console.log(`Skipping ignored file: ${path}`);
             continue;
         }
