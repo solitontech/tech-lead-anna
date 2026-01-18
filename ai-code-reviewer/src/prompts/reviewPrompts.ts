@@ -30,6 +30,10 @@ But ignore minor suggestions or minor non-critical issues.
 
 If the file looks good just respond with: "LGTM" and nothing else.
 
+For anything that is critical or a red flag, use the 🔴 icon.
+For major issues that need fixing, use the 🟡 icon.
+For minor improvements or suggestions, use the 🟢 icon.
+
 FILE CONTENT FOR ${fileName}:
 \`\`\`
 ${content}

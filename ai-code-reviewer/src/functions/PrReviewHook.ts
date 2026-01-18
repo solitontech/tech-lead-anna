@@ -50,15 +50,22 @@ app.http("PrReviewHook", {
 
         context.log(`[EVENT] Received ${eventType} for PR ${prId}`);
 
-        // Only process PR Updated (code push) events
-        // Ignore comment events and other noisy updates
+        // Only process PR Updated (reviewer added) events
         const allowedEvents = ["git.pullrequest.updated"];
         if (!allowedEvents.includes(eventType)) {
             context.log(`[IGNORE] Event type ${eventType} is not in allowed list. Skipping.`);
             return { status: 200 };
         }
 
-        const reviewers = payload?.resource?.reviewers ?? [];
+        const repoId = payload.resource.repository.id;
+        const project = payload.resource.repository.project.name;
+
+        // Fetch the latest PR details from the API to ensure we have the most accurate reviewers list and vote status
+        const prRes = await azdo.get<any>(
+            `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}?api-version=7.1`
+        );
+        const reviewers = prRes.data.reviewers || [];
+
         const annaReviewer = reviewers.find((r: AzDoReviewer) => r.displayName === "Tech Lead Anna");
         const annaReviewerId = annaReviewer?.id;
         const annaCurrentVote = annaReviewer?.vote || 0;
@@ -75,9 +82,6 @@ app.http("PrReviewHook", {
             context.log(`[IGNORE] Anna has already voted (${annaCurrentVote}). Skipping to prevent loop.`);
             return { status: 200 };
         }
-
-        const repoId = payload.resource.repository.id;
-        const project = payload.resource.repository.project.name;
 
         // Set a preliminary vote to 'lock' the PR and prevent race conditions from concurrent webhooks
         try {
@@ -151,7 +155,7 @@ app.http("PrReviewHook", {
                 let review: string;
                 if (cleanedLineCount > 1000) {
                     hasRedFlags = true;
-                    review = "⚠️ **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules to ensure maintainability and testability. A second round of review will be required after refactoring.";
+                    review = "🔴 **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules to ensure maintainability and testability. A second round of review will be required after refactoring.";
                 } else {
                     review = await reviewWithAI(path, cleanedContent);
                 }
