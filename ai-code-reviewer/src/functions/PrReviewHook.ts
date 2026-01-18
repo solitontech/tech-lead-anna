@@ -102,6 +102,22 @@ async function getPullRequestDiff(
 
         const path = change.item.path;
 
+        // Skip non-code files and configuration that doesn't need architecture review
+        const ignoredFiles = [
+            'package.json',
+            'package-lock.json',
+            'yarn.lock',
+            'pnpm-lock.yaml',
+            'env.example',
+            '.gitignore',
+            '.funcignore'
+        ];
+
+        if (ignoredFiles.some(ignored => path.endsWith(ignored))) {
+            console.log(`Skipping ignored file: ${path}`);
+            continue;
+        }
+
         const fileRes = await azdo.get<string>(
             `/${project}/_apis/git/repositories/${repoId}/items`,
             {
