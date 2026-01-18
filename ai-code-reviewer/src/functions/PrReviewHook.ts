@@ -3,6 +3,7 @@ import axios from "axios";
 import OpenAI from "openai";
 import { systemPrompt, getUserPrompt } from "../prompts/reviewPrompts";
 import { shouldIgnoreFile } from "../config/ignoreFiles";
+import { cleanCodeContent } from "../utils/codeCleaner";
 import { AzDoWebhookPayload, AzDoIterationsResponse, AzDoChangesResponse, AzDoReviewer } from "../types/azdo";
 
 /* ---------- Azure DevOps client ---------- */
@@ -124,7 +125,13 @@ async function getPullRequestDiff(
         );
 
         console.log(`Fetched ${path} (${fileRes.data.length} chars)`);
-        combined += `\n\nFILE: ${path}\n${fileRes.data}`;
+
+        const cleanedContent = cleanCodeContent(fileRes.data, path);
+        if (cleanedContent.length !== fileRes.data.length) {
+            console.log(`  Cleaned ${path}: ${fileRes.data.length} -> ${cleanedContent.length} chars`);
+        }
+
+        combined += `\n\nFILE: ${path}\n${cleanedContent}`;
     }
 
     return combined.slice(0, 12000); // token safety
