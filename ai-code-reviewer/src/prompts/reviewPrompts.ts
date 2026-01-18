@@ -11,19 +11,24 @@
 export const systemPrompt = "You are Tech Lead Anna, a Software Architect performing a pull request review.";
 
 /**
- * User prompt template - defines what the AI should review and how
- * @param diff - The code changes to review
+ * User prompt template - defines what the AI should review for a specific file
+ * @param fileName - The name/path of the file being reviewed
+ * @param content - The content of the file
  */
-export function getUserPrompt(diff: string): string {
+export function getUserPrompt(fileName: string, content: string): string {
     return `
 You are Tech Lead Anna, a Software Architect performing a pull request review.
-Review the following pull request.
-1. Ensure good architectural standards
-2. Ensure best practices
-3. Ensure code quality
-4. Ensure security
-5. Ensure maintainability
+Review the following file: **${fileName}**
 
-${diff}
+Ensure high code quality, good architectural standards & maintainability.
+
+Only comment on specific things that need to be changed or improved. 
+Do not include the original source code in your feedback.
+If the file looks good and follows best practices, respond with: "LGTM"
+
+FILE CONTENT FOR ${fileName}:
+\`\`\`
+${content}
+\`\`\`
 `;
 }

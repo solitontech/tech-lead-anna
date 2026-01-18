@@ -60,11 +60,80 @@ app.http("PrReviewHook", {
         const repoId = payload.resource.repository.id;
         const project = payload.resource.repository.project.name;
 
-        context.log(`Reviewing PR ${prId} in project ${project}`);
+        context.log(`Reviewing PR ${prId} in project ${project} file by file`);
 
-        const diff = await getPullRequestDiff(project, repoId, prId);
-        const review = await reviewWithAI(diff);
-        await postReview(project, repoId, prId, review);
+        const iterationsRes = await azdo.get<AzDoIterationsResponse>(
+            `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations?api-version=7.1`
+        );
+
+        if (!iterationsRes.data.value?.length) {
+            context.log("No iterations found. Skipping.");
+            return { status: 200 };
+        }
+
+        const latestIteration = iterationsRes.data.value.slice(-1)[0];
+        const latestIterationId = latestIteration.id;
+        const commitId = latestIteration.sourceRefCommit.commitId;
+
+        const changesRes = await azdo.get<any>(
+            `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations/${latestIterationId}/changes?api-version=7.1`
+        );
+
+        const changes = changesRes.data.changes || changesRes.data.value || changesRes.data.changeEntries || [];
+
+        for (const change of changes) {
+            if (change.item?.isFolder) continue;
+
+            const path = change.item.path;
+
+            if (shouldIgnoreFile(path)) {
+                context.log(`Skipping ignored file: ${path}`);
+                continue;
+            }
+
+            try {
+                const fileRes = await azdo.get<any>(
+                    `/${project}/_apis/git/repositories/${repoId}/items`,
+                    {
+                        params: {
+                            path,
+                            includeContent: true,
+                            versionDescriptor: {
+                                versionType: "Commit",
+                                version: commitId
+                            },
+                            "api-version": "7.1"
+                        }
+                    }
+                );
+
+                const content = fileRes.data.content || "";
+                const lineCount = content.split('\n').length;
+                context.log(`Fetched ${path} (${lineCount} lines, ${content.length} chars)`);
+
+                const cleanedContent = cleanCodeContent(content, path);
+                const cleanedLineCount = cleanedContent.split('\n').length;
+                if (cleanedContent.length !== content.length) {
+                    context.log(`  Cleaned ${path}: ${lineCount} -> ${cleanedLineCount} lines (${cleanedContent.length} chars)`);
+                }
+
+                let review: string;
+                if (cleanedLineCount > 1000) {
+                    review = "⚠️ **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules to ensure maintainability and testability. A second round of review will be required after refactoring.";
+                } else {
+                    review = await reviewWithAI(path, cleanedContent);
+                }
+
+                if (review.trim().toUpperCase() !== "LGTM") {
+                    context.log(`Posting feedback for ${path}`);
+                    await postReview(project, repoId, prId, path, review);
+                } else {
+                    context.log(`No issues found in ${path}`);
+                }
+            } catch (err: any) {
+                context.log(`Error reviewing ${path}: ${err.message}`);
+            }
+        }
 
         return { status: 200 };
     }
@@ -72,74 +141,7 @@ app.http("PrReviewHook", {
 
 /* ---------- Helpers ---------- */
 
-async function getPullRequestDiff(
-    project: string,
-    repoId: string,
-    prId: number
-): Promise<string> {
-
-    const iterationsRes = await azdo.get<AzDoIterationsResponse>(
-        `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations?api-version=7.1`
-    );
-
-    const latestIteration = iterationsRes.data.value.slice(-1)[0];
-    const latestIterationId = latestIteration.id;
-    const commitId = latestIteration.sourceRefCommit.commitId;
-
-    console.log(`Fetching changes for iteration ${latestIterationId} (Commit: ${commitId})...`);
-    const changesRes = await azdo.get<any>(
-        `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations/${latestIterationId}/changes?api-version=7.1`
-    );
-
-    const changes = changesRes.data.changes ||
-        changesRes.data.value ||
-        changesRes.data.changeEntries ||
-        [];
-
-    let combined = "";
-
-    for (const change of changes) {
-        if (change.item?.isFolder) continue;
-
-        const path = change.item.path;
-
-        if (shouldIgnoreFile(path)) {
-            console.log(`Skipping ignored file: ${path}`);
-            continue;
-        }
-
-        const fileRes = await azdo.get<any>(
-            `/${project}/_apis/git/repositories/${repoId}/items`,
-            {
-                params: {
-                    path,
-                    includeContent: true,
-                    versionDescriptor: {
-                        versionType: "Commit",
-                        version: commitId
-                    },
-                    "api-version": "7.1"
-                }
-            }
-        );
-
-        const content = fileRes.data.content || "";
-        const lineCount = content.split('\n').length;
-        console.log(`Fetched ${path} (${lineCount} lines, ${content.length} chars)`);
-
-        const cleanedContent = cleanCodeContent(content, path);
-        const cleanedLineCount = cleanedContent.split('\n').length;
-        if (cleanedContent.length !== content.length) {
-            console.log(`  Cleaned ${path}: ${lineCount} -> ${cleanedLineCount} lines (${cleanedContent.length} chars)`);
-        }
-
-        combined += `\n\nFILE: ${path}\n${cleanedContent}`;
-    }
-
-    return combined.slice(0, 12000); // token safety
-}
-
-async function reviewWithAI(diff: string): Promise<string> {
+async function reviewWithAI(fileName: string, content: string): Promise<string> {
     const completion = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL!,
         messages: [
@@ -149,18 +151,19 @@ async function reviewWithAI(diff: string): Promise<string> {
             },
             {
                 role: "user",
-                content: getUserPrompt(diff)
+                content: getUserPrompt(fileName, content)
             }
         ]
     });
 
-    return completion.choices[0].message.content ?? "No feedback.";
+    return completion.choices[0].message.content ?? "LGTM";
 }
 
 async function postReview(
     project: string,
     repoId: string,
     prId: number,
+    path: string,
     review: string
 ) {
     await azdo.post(
@@ -169,7 +172,7 @@ async function postReview(
             comments: [
                 {
                     parentCommentId: 0,
-                    content: `### 🤖 Tech Lead Anna Review\n\n${review}`,
+                    content: `\`${path}\`\n\n${review}`,
                     commentType: 1
                 }
             ],
