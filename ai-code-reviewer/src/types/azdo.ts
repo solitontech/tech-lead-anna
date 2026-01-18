@@ -14,7 +14,9 @@ export interface AzDoPullRequest {
 }
 
 export interface AzDoReviewer {
+    id: string;
     displayName: string;
+    vote: number;
 }
 
 export interface AzDoRepository {

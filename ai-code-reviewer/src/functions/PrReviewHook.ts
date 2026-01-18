@@ -59,12 +59,20 @@ app.http("PrReviewHook", {
         }
 
         const reviewers = payload?.resource?.reviewers ?? [];
-        const annaRequested = reviewers.some(
-            (r: AzDoReviewer) => r.displayName === "Tech Lead Anna"
-        );
+        const annaReviewer = reviewers.find((r: AzDoReviewer) => r.displayName === "Tech Lead Anna");
+        const annaReviewerId = annaReviewer?.id;
+        const annaCurrentVote = annaReviewer?.vote || 0;
 
-        if (!annaRequested) {
+        context.log(`[VOTE CHECK] Anna's current vote: ${annaCurrentVote}`);
+
+        if (!annaReviewer) {
             context.log("[IGNORE] Tech Lead Anna not requested/present in reviewers. Skipping.");
+            return { status: 200 };
+        }
+
+        // BREAK THE LOOP: If Anna has already voted, she has already reviewed this version of the code.
+        if (annaCurrentVote !== 0) {
+            context.log(`[IGNORE] Anna has already voted (${annaCurrentVote}). Skipping to prevent loop.`);
             return { status: 200 };
         }
 
@@ -160,6 +168,23 @@ app.http("PrReviewHook", {
             await postReview(project, repoId, prId, combinedContent);
         }
 
+        // SET VOTE AFTER REVIEW
+        if (annaReviewerId) {
+            let vote = 10; // Default: Approved (10)
+            if (hasRedFlags) {
+                vote = -5; // Waiting for author
+            } else if (hasIssues) {
+                vote = 5; // Approved with suggestions
+            }
+
+            try {
+                context.log(`[VOTE] Setting PR vote to ${vote} (Flags: ${hasRedFlags}, Issues: ${hasIssues})`);
+                await setPrVote(project, repoId, prId, annaReviewerId, vote);
+            } catch (voteErr: any) {
+                context.log(`[VOTE] Failed to set vote: ${voteErr.message}`);
+            }
+        }
+
         return { status: 200 };
     }
 });
@@ -214,5 +239,19 @@ async function postReview(
             ],
             status: 1
         }
+    );
+}
+
+async function setPrVote(
+    project: string,
+    repoId: string,
+    prId: number,
+    reviewerId: string,
+    vote: number
+) {
+    const encodedProject = encodeURIComponent(project);
+    await azdo.put(
+        `/${encodedProject}/_apis/git/repositories/${repoId}/pullRequests/${prId}/reviewers/${reviewerId}?api-version=7.1`,
+        { vote }
     );
 }
