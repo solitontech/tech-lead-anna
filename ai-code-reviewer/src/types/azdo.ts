@@ -3,6 +3,7 @@
  */
 
 export interface AzDoWebhookPayload {
+    eventType: string;
     resource: AzDoPullRequest;
 }
 

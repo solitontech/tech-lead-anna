@@ -45,6 +45,18 @@ app.http("PrReviewHook", {
     authLevel: "anonymous",
     handler: async (req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         const payload = await req.json() as AzDoWebhookPayload;
+        const eventType = payload.eventType;
+        const prId = payload.resource.pullRequestId;
+
+        context.log(`[EVENT] Received ${eventType} for PR ${prId}`);
+
+        // Only process PR Updated (code push) events
+        // Ignore comment events and other noisy updates
+        const allowedEvents = ["git.pullrequest.updated"];
+        if (!allowedEvents.includes(eventType)) {
+            context.log(`[IGNORE] Event type ${eventType} is not in allowed list. Skipping.`);
+            return { status: 200 };
+        }
 
         const reviewers = payload?.resource?.reviewers ?? [];
         const annaRequested = reviewers.some(
@@ -52,11 +64,10 @@ app.http("PrReviewHook", {
         );
 
         if (!annaRequested) {
-            context.log("Tech Lead Anna not requested. Ignoring event.");
+            context.log("[IGNORE] Tech Lead Anna not requested/present in reviewers. Skipping.");
             return { status: 200 };
         }
 
-        const prId = payload.resource.pullRequestId;
         const repoId = payload.resource.repository.id;
         const project = payload.resource.repository.project.name;
 
@@ -64,6 +75,7 @@ app.http("PrReviewHook", {
 
         let hasRedFlags = false;
         let hasIssues = false;
+        const allReviews: string[] = [];
 
         const iterationsRes = await azdo.get<AzDoIterationsResponse>(
             `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/iterations?api-version=7.1`
@@ -130,8 +142,8 @@ app.http("PrReviewHook", {
 
                 if (!review.toUpperCase().includes("LGTM")) {
                     hasIssues = true;
-                    context.log(`Posting feedback for ${path}`);
-                    await postReview(project, repoId, prId, path, review);
+                    context.log(`Adding feedback for ${path}`);
+                    allReviews.push(`#### 📄 File: \`${path}\`\n\n${review}`);
                 } else {
                     context.log(`No issues found in ${path}`);
                 }
@@ -140,6 +152,12 @@ app.http("PrReviewHook", {
             }
             // Add a small delay between files to avoid hitting TPM limits
             await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        if (allReviews.length > 0) {
+            const combinedContent = `### 🤖 Tech Lead Anna Review Summary\n\n${allReviews.join('\n\n---\n\n')}`;
+            context.log(`Posting combined review for PR ${prId}`);
+            await postReview(project, repoId, prId, combinedContent);
         }
 
         return { status: 200 };
@@ -182,8 +200,7 @@ async function postReview(
     project: string,
     repoId: string,
     prId: number,
-    path: string,
-    review: string
+    content: string
 ) {
     await azdo.post(
         `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/threads?api-version=7.1`,
@@ -191,7 +208,7 @@ async function postReview(
             comments: [
                 {
                     parentCommentId: 0,
-                    content: `\`${path}\`\n\n${review}`,
+                    content: content,
                     commentType: 1
                 }
             ],
