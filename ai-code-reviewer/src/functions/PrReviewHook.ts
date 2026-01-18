@@ -128,7 +128,7 @@ app.http("PrReviewHook", {
                     review = await reviewWithAI(path, cleanedContent);
                 }
 
-                if (review.trim().toUpperCase() !== "LGTM") {
+                if (!review.toUpperCase().includes("LGTM")) {
                     hasIssues = true;
                     context.log(`Posting feedback for ${path}`);
                     await postReview(project, repoId, prId, path, review);
