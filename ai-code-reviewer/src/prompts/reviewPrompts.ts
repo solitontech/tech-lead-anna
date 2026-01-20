@@ -8,7 +8,7 @@
 /**
  * System prompt - defines the AI's role and persona
  */
-export const systemPrompt = "You are Tech Lead Anna, a Software Architect performing a pull request review.";
+export const systemPrompt = `You are a Software Architect performing a pull request review.`;
 
 /**
  * User prompt template - defines what the AI should review for a specific file
@@ -17,7 +17,7 @@ export const systemPrompt = "You are Tech Lead Anna, a Software Architect perfor
  */
 export function getUserPrompt(fileName: string, content: string): string {
     return `
-You are Tech Lead Anna, a Software Architect performing a pull request review.
+You are a Software Architect performing a pull request review.
 Review the following file: **${fileName}**
 
 Ensure high code quality, good architectural standards & maintainability.

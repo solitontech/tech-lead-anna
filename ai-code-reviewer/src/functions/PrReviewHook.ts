@@ -39,6 +39,8 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
+const REVIEWER_NAME = process.env.REVIEWER_NAME;
+
 /* ---------- Azure Function ---------- */
 app.http("PrReviewHook", {
     methods: ["POST"],
@@ -66,27 +68,27 @@ app.http("PrReviewHook", {
         );
         const reviewers = prRes.data.reviewers || [];
 
-        const annaReviewer = reviewers.find((r: AzDoReviewer) => r.displayName === "Tech Lead Anna");
-        const annaReviewerId = annaReviewer?.id;
-        const annaCurrentVote = annaReviewer?.vote || 0;
+        const reviewer = reviewers.find((r: AzDoReviewer) => r.displayName === REVIEWER_NAME);
+        const reviewerId = reviewer?.id;
+        const currentVote = reviewer?.vote || 0;
 
-        context.log(`[VOTE CHECK] Anna's current vote: ${annaCurrentVote}`);
+        context.log(`[VOTE CHECK] ${REVIEWER_NAME}'s current vote: ${currentVote}`);
 
-        if (!annaReviewer) {
-            context.log("[IGNORE] Tech Lead Anna not requested/present in reviewers. Skipping.");
+        if (!reviewer) {
+            context.log(`[IGNORE] ${REVIEWER_NAME} not requested/present in reviewers. Skipping.`);
             return { status: 200 };
         }
 
-        // If Anna has already voted, she has already reviewed this version of the code.
-        if (annaCurrentVote !== 0) {
-            context.log(`[IGNORE] Anna has already voted (${annaCurrentVote}). Skipping to prevent loop.`);
+        // If the reviewer has already voted, they have already reviewed this version of the code.
+        if (currentVote !== 0) {
+            context.log(`[IGNORE] ${REVIEWER_NAME} has already voted (${currentVote}). Skipping to prevent loop.`);
             return { status: 200 };
         }
 
         // Set a preliminary vote to 'lock' the PR and prevent race conditions from concurrent webhooks
         try {
-            context.log(`[VOTE] Setting preliminary 'Waiting for Author' vote to lock the process.`);
-            await setPrVote(project, repoId, prId, annaReviewerId!, -5);
+            context.log(`[VOTE] Setting preliminary 'Waiting for Author' vote to lock the process for ${REVIEWER_NAME}.`);
+            await setPrVote(project, repoId, prId, reviewerId!, -5);
         } catch (voteErr: any) {
             context.log(`[VOTE] Failed to set preliminary vote: ${voteErr.message}`);
         }
@@ -175,13 +177,13 @@ app.http("PrReviewHook", {
         }
 
         if (allReviews.length > 0) {
-            const combinedContent = `### 🤖 Tech Lead Anna Review Summary\n\n${allReviews.join('\n\n---\n\n')}`;
+            const combinedContent = `### 🤖 ${REVIEWER_NAME} Review Summary\n\n${allReviews.join('\n\n---\n\n')}`;
             context.log(`Posting combined review for PR ${prId}`);
             await postReview(project, repoId, prId, combinedContent);
         }
 
         // SET VOTE AFTER REVIEW
-        if (annaReviewerId) {
+        if (reviewerId) {
             let vote = 10; // Default: Approved (10)
             if (hasRedFlags) {
                 vote = -5; // Waiting for author
@@ -191,7 +193,7 @@ app.http("PrReviewHook", {
 
             try {
                 context.log(`[VOTE] Setting PR vote to ${vote} (Flags: ${hasRedFlags}, Issues: ${hasIssues})`);
-                await setPrVote(project, repoId, prId, annaReviewerId, vote);
+                await setPrVote(project, repoId, prId, reviewerId, vote);
             } catch (voteErr: any) {
                 context.log(`[VOTE] Failed to set vote: ${voteErr.message}`);
             }
