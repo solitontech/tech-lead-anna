@@ -80,3 +80,43 @@ Set the following variables in your Azure Function App's **Configuration**:
 
 ### 4. Configure Webhooks
 Follow the same steps as the Soliton guide above, but use the URL of **your own** deployed Azure Function.
+
+---
+
+## Development
+
+If you are a developer looking to run or test the AI Reviewer locally, follow these steps:
+
+### 1. Local Configuration
+Azure Functions use a `local.settings.json` file for local environment variables. This file is git-ignored for security.
+
+1.  Navigate to the `ai-code-reviewer` directory.
+2.  Create a new file named `local.settings.json`.
+3.  Add the following structure:
+
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AZDO_ORG_URL": "https://dev.azure.com/YourOrg",
+    "AZDO_PAT": "your-personal-access-token",
+    "OPENAI_API_KEY": "your-openai-api-key",
+    "OPENAI_MODEL": "your-preferred-model",
+    "REVIEWER_NAME": "your-reviewer-name",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true"
+  }
+}
+```
+
+### 2. Running Locally
+Ensure you have the [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) installed.
+
+```bash
+cd ai-code-reviewer
+npm install
+npm run build
+func start
+```
+
+Your function will now be running at `http://localhost:7071/api/PrReviewHook`. You can use a tool like **ngrok** to expose this endpoint to Azure DevOps webhooks for local testing.
