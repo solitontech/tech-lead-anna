@@ -118,5 +118,19 @@ npm install
 npm run build
 func start
 ```
+Your function will now be running at `http://localhost:7071/api/PrReviewHook`.
 
-Your function will now be running at `http://localhost:7071/api/PrReviewHook`. You can use a tool like **ngrok** to expose this endpoint to Azure DevOps webhooks for local testing.
+> **Note**: After any code changes, you must rebuild the project using `npm run build` before the changes take effect in the running function.
+
+### 3. Testing Locally
+To test the function without triggering a real webhook from Azure DevOps, you can simulate a request using `curl`.
+
+1. Create a directory for test data: `mkdir -p ai-code-reviewer/test-files`
+2. Create a file named `test-payload.json` inside that folder with a sample Azure DevOps webhook payload.
+3. While the function is running (`func start`), execute the following command:
+
+```bash
+curl -X POST http://localhost:7071/api/PrReviewHook \
+  -H "Content-Type: application/json" \
+  --data @./ai-code-reviewer/test-files/test-payload.json
+```
