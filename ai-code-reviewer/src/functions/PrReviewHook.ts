@@ -1,45 +1,13 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import axios from "axios";
-import OpenAI from "openai";
-import { systemPrompt, getUserPrompt } from "../prompts/reviewPrompts";
+import azdo, { postReview, setPrVote } from "../utils/azdoClient";
+import { reviewWithAI } from "../utils/aiClient";
 import { shouldIgnoreFile } from "../config/ignoreFiles";
 import { cleanCodeContent } from "../utils/codeCleaner";
 import { AzDoWebhookPayload, AzDoIterationsResponse, AzDoChangesResponse, AzDoReviewer } from "../types/azdo";
-
-/* ---------- Azure DevOps client ---------- */
-const azdo = axios.create({
-    baseURL: process.env.AZDO_ORG_URL,
-    auth: {
-        username: "",
-        password: process.env.AZDO_PAT!
-    }
-});
-
-// Logging interceptor for debugging 404s
-azdo.interceptors.request.use(config => {
-    console.log(`[AzDo API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    return config;
-});
-
-azdo.interceptors.response.use(
-    response => response,
-    error => {
-        if (error.response) {
-            console.error(`[AzDo API Error] Status: ${error.response.status}`);
-            console.error(`[AzDo API Error] Resource: ${error.config.url}`);
-            console.error(`[AzDo API Error] Data:`, error.response.data);
-        }
-        return Promise.reject(error);
-    }
-);
+import { env } from "../config/envVariables";
 
 
-/* ---------- OpenAI client ---------- */
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
-
-const REVIEWER_NAME = process.env.REVIEWER_NAME;
+const REVIEWER_NAME = env.REVIEWER_NAME;
 
 /* ---------- Azure Function ---------- */
 app.http("PrReviewHook", {
@@ -148,7 +116,7 @@ app.http("PrReviewHook", {
                 const lineCount = content.split('\n').length;
                 context.log(`Fetched ${path} (${lineCount} lines, ${content.length} chars)`);
 
-                const cleanedContent = cleanCodeContent(content, path);
+                const { cleanedContent, lineMap } = cleanCodeContent(content, path);
                 const cleanedLineCount = cleanedContent.split('\n').length;
                 if (cleanedContent.length !== content.length) {
                     context.log(`  Cleaned ${path}: ${lineCount} -> ${cleanedLineCount} lines (${cleanedContent.length} chars)`);
@@ -167,7 +135,9 @@ app.http("PrReviewHook", {
 
                         // Post each issue as a separate thread
                         for (const review of aiReviews) {
-                            await postReview(project, repoId, prId, review.comment, path, review.line);
+                            // Map the line number back to the original file
+                            const originalLine = lineMap[review.line - 1] || review.line;
+                            await postReview(project, repoId, prId, review.comment, path, originalLine);
                         }
                     } else {
                         context.log(`No issues found in ${path}`);
@@ -201,103 +171,3 @@ app.http("PrReviewHook", {
     }
 });
 
-/* ---------- Helpers ---------- */
-
-interface AIReviewComment {
-    line: number;
-    severity: string;
-    comment: string;
-}
-
-async function reviewWithAI(fileName: string, content: string, attempt: number = 1): Promise<AIReviewComment[]> {
-    try {
-        const completion = await openai.chat.completions.create({
-            model: process.env.OPENAI_MODEL!,
-            messages: [
-                {
-                    role: "system",
-                    content: systemPrompt
-                },
-                {
-                    role: "user",
-                    content: getUserPrompt(fileName, content)
-                }
-            ],
-            response_format: { type: "json_object" }
-        });
-
-        const rawContent = completion.choices[0].message.content;
-        if (!rawContent) return [];
-
-        try {
-            const parsed = JSON.parse(rawContent);
-            return parsed.reviews || [];
-        } catch (parseErr) {
-            console.error("Failed to parse AI JSON response", parseErr);
-            return [];
-        }
-
-    } catch (err: any) {
-        // If Rate Limit (429) and we haven't tried too many times
-        if (err.status === 429 && attempt <= 3) {
-            const jitter = Math.floor(Math.random() * 1000); // Up to 1s jitter
-            const waitTime = (attempt * 2000) + jitter; // 2s + jitter, 4s + jitter...
-            console.log(`Rate limit hit for ${fileName}. Retrying in ${waitTime}ms... (Attempt ${attempt})`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            return reviewWithAI(fileName, content, attempt + 1);
-        }
-        throw err;
-    }
-}
-
-async function postReview(
-    project: string,
-    repoId: string,
-    prId: number,
-    content: string,
-    filePath?: string,
-    lineNumber?: number
-) {
-    const threadBody: any = {
-        comments: [
-            {
-                parentCommentId: 0,
-                content: content,
-                commentType: 1
-            }
-        ],
-        status: 1
-    };
-
-    if (filePath && lineNumber) {
-        threadBody.threadContext = {
-            filePath: filePath,
-            rightFileStart: { line: lineNumber },
-            rightFileEnd: { line: lineNumber }
-        };
-    } else if (filePath) {
-        // Fallback if no line number, just add file path to text or simple thread
-        threadBody.threadContext = {
-            filePath: filePath
-        };
-    }
-
-    await azdo.post(
-        `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/threads?api-version=7.1`,
-        threadBody
-    );
-}
-
-async function setPrVote(
-    project: string,
-    repoId: string,
-    prId: number,
-    reviewerId: string,
-    vote: number
-) {
-    const encodedProject = encodeURIComponent(project);
-    await azdo.put(
-        `/${encodedProject}/_apis/git/repositories/${repoId}/pullRequests/${prId}/reviewers/${reviewerId}?api-version=7.1`,
-        { vote }
-    );
-}
