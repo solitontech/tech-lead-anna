@@ -44,7 +44,7 @@ If you are a member of the **Soliton** organization, "Tech Lead Anna" is already
     `https://ai-code-reviewer-atckafdffmcdcbbn.southindia-01.azurewebsites.net/api/PrReviewHook`
 7.  **Finish**: You're done! "Tech Lead Anna" will now automatically review any PR where she is added as a reviewer.
 
-*Note: The environment variables and PAT for "Tech Lead Anna" are already managed by the Soliton infra team.*
+*Note: The environment variables and PAT for "Tech Lead Anna" are already managed by Karthikeyan Balasubramanian.*
 
 ---
 
