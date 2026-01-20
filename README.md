@@ -58,11 +58,7 @@ To host your own version of the AI Reviewer, follow these steps:
 - An **Azure DevOps Personal Access Token (PAT)** with "Code (Read & Write)" and "Threads (Read & Write)" permissions.
 
 ### 2. Infrastructure Setup
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/YourOrg/ai-code-reviewer.git
-    cd ai-code-reviewer
-    ```
+1.  **Clone the Repository**
 2.  **Deploy to Azure**:
     - Build and deploy using the Azure Functions Core Tools: `func azure functionapp publish <Your-App-Name>`
     - Or use the "Deploy to Azure" button if available in your CI/CD.
