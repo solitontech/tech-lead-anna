@@ -57,8 +57,8 @@ export async function postReview(
     if (filePath && lineNumber) {
         threadBody.threadContext = {
             filePath: filePath,
-            rightFileStart: { line: lineNumber },
-            rightFileEnd: { line: lineNumber }
+            rightFileStart: { line: lineNumber, offset: 1 },
+            rightFileEnd: { line: lineNumber, offset: 1 }
         };
     } else if (filePath) {
         threadBody.threadContext = {

@@ -122,7 +122,8 @@ app.http("PrReviewHook", {
                     context.log(`  Cleaned ${path}: ${lineCount} -> ${cleanedLineCount} lines (${cleanedContent.length} chars)`);
                 }
 
-                if (cleanedLineCount > 1000) {
+                const isMarkdown = path.toLowerCase().endsWith('.md');
+                if (cleanedLineCount > 1000 && !isMarkdown) {
                     hasRedFlags = true;
                     // For red flags, we just post a top-level file comment
                     await postReview(project, repoId, prId, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules.", path);
