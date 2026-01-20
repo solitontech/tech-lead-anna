@@ -154,32 +154,30 @@ app.http("PrReviewHook", {
                     context.log(`  Cleaned ${path}: ${lineCount} -> ${cleanedLineCount} lines (${cleanedContent.length} chars)`);
                 }
 
-                let review: string;
                 if (cleanedLineCount > 1000) {
                     hasRedFlags = true;
-                    review = "🔴 **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules to ensure maintainability and testability. A second round of review will be required after refactoring.";
+                    // For red flags, we just post a top-level file comment
+                    await postReview(project, repoId, prId, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules.", path);
                 } else {
-                    review = await reviewWithAI(path, cleanedContent);
-                }
+                    const aiReviews = await reviewWithAI(path, cleanedContent);
 
-                if (!review.toUpperCase().includes("LGTM")) {
-                    hasIssues = true;
-                    context.log(`Adding feedback for ${path}`);
-                    allReviews.push(`#### 📄 File: \`${path}\`\n\n${review}`);
-                } else {
-                    context.log(`No issues found in ${path}`);
+                    if (aiReviews.length > 0) {
+                        hasIssues = true;
+                        context.log(`Posting ${aiReviews.length} issues for ${path}`);
+
+                        // Post each issue as a separate thread
+                        for (const review of aiReviews) {
+                            await postReview(project, repoId, prId, review.comment, path, review.line);
+                        }
+                    } else {
+                        context.log(`No issues found in ${path}`);
+                    }
                 }
             } catch (err: any) {
                 context.log(`Error reviewing ${path}: ${err.message}`);
             }
             // Add a small delay between files to avoid hitting TPM limits
             await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-        if (allReviews.length > 0) {
-            const combinedContent = `### 🤖 ${REVIEWER_NAME} Review Summary\n\n${allReviews.join('\n\n---\n\n')}`;
-            context.log(`Posting combined review for PR ${prId}`);
-            await postReview(project, repoId, prId, combinedContent);
         }
 
         // SET VOTE AFTER REVIEW
@@ -205,7 +203,13 @@ app.http("PrReviewHook", {
 
 /* ---------- Helpers ---------- */
 
-async function reviewWithAI(fileName: string, content: string, attempt: number = 1): Promise<string> {
+interface AIReviewComment {
+    line: number;
+    severity: string;
+    comment: string;
+}
+
+async function reviewWithAI(fileName: string, content: string, attempt: number = 1): Promise<AIReviewComment[]> {
     try {
         const completion = await openai.chat.completions.create({
             model: process.env.OPENAI_MODEL!,
@@ -218,10 +222,21 @@ async function reviewWithAI(fileName: string, content: string, attempt: number =
                     role: "user",
                     content: getUserPrompt(fileName, content)
                 }
-            ]
+            ],
+            response_format: { type: "json_object" }
         });
 
-        return completion.choices[0].message.content ?? "LGTM";
+        const rawContent = completion.choices[0].message.content;
+        if (!rawContent) return [];
+
+        try {
+            const parsed = JSON.parse(rawContent);
+            return parsed.reviews || [];
+        } catch (parseErr) {
+            console.error("Failed to parse AI JSON response", parseErr);
+            return [];
+        }
+
     } catch (err: any) {
         // If Rate Limit (429) and we haven't tried too many times
         if (err.status === 429 && attempt <= 3) {
@@ -239,20 +254,37 @@ async function postReview(
     project: string,
     repoId: string,
     prId: number,
-    content: string
+    content: string,
+    filePath?: string,
+    lineNumber?: number
 ) {
+    const threadBody: any = {
+        comments: [
+            {
+                parentCommentId: 0,
+                content: content,
+                commentType: 1
+            }
+        ],
+        status: 1
+    };
+
+    if (filePath && lineNumber) {
+        threadBody.threadContext = {
+            filePath: filePath,
+            rightFileStart: { line: lineNumber },
+            rightFileEnd: { line: lineNumber }
+        };
+    } else if (filePath) {
+        // Fallback if no line number, just add file path to text or simple thread
+        threadBody.threadContext = {
+            filePath: filePath
+        };
+    }
+
     await azdo.post(
         `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/threads?api-version=7.1`,
-        {
-            comments: [
-                {
-                    parentCommentId: 0,
-                    content: content,
-                    commentType: 1
-                }
-            ],
-            status: 1
-        }
+        threadBody
     );
 }
 

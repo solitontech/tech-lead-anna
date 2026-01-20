@@ -20,19 +20,30 @@ export function getUserPrompt(fileName: string, content: string): string {
 You are a Software Architect performing a pull request review.
 Review the following file: **${fileName}**
 
-Ensure high code quality, good architectural standards & maintainability.
+- Ensure high code quality, good architectural standards & maintainability.
+- Only comment on specific things that need to be changed or improved. 
+- Do not include the original source code in your feedback.
+- For anything that is important & needs to be fixed, be firm in your tone, not suggestive
 
-Only comment on specific things that need to be changed or improved. 
-Do not include the original source code in your feedback.
+- For anything that is critical or a red flag, use the 🔴 icon.
+- For major issues that need fixing, use the 🟡 icon.
+- For minor improvements or suggestions, use the 🟢 icon.
 
-For anything that is important & needs to be fixed, be firm in your tone, not suggestive
-But ignore minor suggestions or minor non-critical issues.
+Provide your review in valid JSON format.
+The output should be a JSON object with a single key "reviews" which is an array of objects.
+Each object should have:
+- "line": The line number where the issue is located (1-based integer).
+- "severity": One of "critical", "major", "minor".
+- "comment": The review comment (use the icons 🔴, 🟡, 🟢 as verified before).
 
-If the file looks good just respond with: "LGTM" and nothing else.
+Example format:
+{
+  "reviews": [
+    { "line": 10, "severity": "major", "comment": "🟡 Avoid using magic numbers..." }
+  ]
+}
 
-For anything that is critical or a red flag, use the 🔴 icon.
-For major issues that need fixing, use the 🟡 icon.
-For minor improvements or suggestions, use the 🟢 icon.
+If the file looks good, return an empty array: { "reviews": [] }
 
 FILE CONTENT FOR ${fileName}:
 \`\`\`
