@@ -12,7 +12,9 @@
     "test": "echo \"No tests yet...\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@azure/functions": "^4.0.0",
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.13.2",
     "openai": "^6.16.0"
   },

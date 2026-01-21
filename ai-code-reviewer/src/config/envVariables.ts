@@ -8,9 +8,10 @@ export const env = {
     AZDO_ORG_URL: process.env.AZDO_ORG_URL,
     AZDO_PAT: process.env.AZDO_PAT,
 
-    // OpenAI Configuration
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    OPENAI_MODEL: process.env.OPENAI_MODEL,
+    // AI Configuration
+    AI_PROVIDER: process.env.AI_PROVIDER.toLowerCase(),
+    AI_API_KEY: process.env.AI_API_KEY,
+    AI_MODEL: process.env.AI_MODEL,
 
     // Reviewer Configuration
     REVIEWER_NAME: process.env.REVIEWER_NAME,
@@ -20,7 +21,7 @@ export const env = {
 const missingVars = [];
 if (!env.AZDO_ORG_URL) missingVars.push("AZDO_ORG_URL");
 if (!env.AZDO_PAT) missingVars.push("AZDO_PAT");
-if (!env.OPENAI_API_KEY) missingVars.push("OPENAI_API_KEY");
+if (!env.AI_API_KEY) missingVars.push("AI_API_KEY");
 
 if (missingVars.length > 0) {
     console.warn(`[CONFIG] Missing critical environment variables: ${missingVars.join(", ")}`);
