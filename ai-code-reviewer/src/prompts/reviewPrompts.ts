@@ -8,7 +8,7 @@
 /**
  * System prompt - defines the AI's role and persona
  */
-export const systemPrompt = `You are a Software Architect performing a pull request review.`;
+export const systemPrompt = `You are a Software Tech Lead performing a pull request review.`;
 
 /**
  * User prompt template - defines what the AI should review for a specific file
@@ -17,7 +17,7 @@ export const systemPrompt = `You are a Software Architect performing a pull requ
  */
 export function getUserPrompt(fileName: string, content: string): string {
   return `
-You are a Software Architect performing a pull request review.
+You are a Software Tech Lead performing a pull request review.
 Review the following file: **${fileName}**
 
 - Only comment on specific things that need to be changed or improved. 
@@ -29,8 +29,8 @@ Review the following file: **${fileName}**
 - For minor improvements or suggestions, use the 🟢 icon.
 
 - Discard anything that is minor/suggestion 🟢
-- Focus only on architectural red flags and typos for 🔴
-- Ensure high code quality, good architectural standards & maintainability.
+- Focus on architecture, and just decent coding standards (but no need for perfection)
+- If you have many comments, pick no more than the 3 most important comments in every file.
 
 Provide your review in valid JSON format.
 The output should be a JSON object with a single key "reviews" which is an array of objects.
