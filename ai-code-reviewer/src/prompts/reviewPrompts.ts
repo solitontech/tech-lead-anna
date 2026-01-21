@@ -46,6 +46,10 @@ Example format:
   ]
 }
 
+Before returning the comments (if there are any) double check each line number against
+each comment to check if it's the right line. If not then find the right line and update
+the line number
+
 If the file looks good, return an empty array: { "reviews": [] }
 
 FILE CONTENT FOR ${fileName}:
