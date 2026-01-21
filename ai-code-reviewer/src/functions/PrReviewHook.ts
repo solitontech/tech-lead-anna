@@ -116,7 +116,7 @@ app.http("PrReviewHook", {
                 const lineCount = content.split('\n').length;
                 context.log(`Fetched ${path} (${lineCount} lines, ${content.length} chars)`);
 
-                const { cleanedContent, lineMap } = cleanCodeContent(content, path);
+                const cleanedContent = cleanCodeContent(content, path);
                 const cleanedLineCount = cleanedContent.split('\n').length;
                 if (cleanedContent.length !== content.length) {
                     context.log(`  Cleaned ${path}: ${lineCount} -> ${cleanedLineCount} lines (${cleanedContent.length} chars)`);
@@ -125,10 +125,9 @@ app.http("PrReviewHook", {
                 const isMarkdown = path.toLowerCase().endsWith('.md');
                 if (cleanedLineCount > 1000 && !isMarkdown) {
                     hasRedFlags = true;
-                    // For red flags, we just post a top-level file comment
                     await postReview(project, repoId, prId, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines. Please split it into smaller, more focused modules.", path);
                 } else {
-                    const aiReviews = await reviewWithAI(path, cleanedContent);
+                    const aiReviews = await reviewWithAI(path, content);
 
                     if (aiReviews.length > 0) {
                         hasIssues = true;
@@ -136,9 +135,7 @@ app.http("PrReviewHook", {
 
                         // Post each issue as a separate thread
                         for (const review of aiReviews) {
-                            // Map the line number back to the original file
-                            const originalLine = lineMap[review.line - 1] || review.line;
-                            await postReview(project, repoId, prId, review.comment, path, originalLine);
+                            await postReview(project, repoId, prId, review.comment, path, review.line);
                         }
                     } else {
                         context.log(`No issues found in ${path}`);
