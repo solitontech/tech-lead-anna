@@ -16,11 +16,10 @@ export const systemPrompt = `You are a Software Architect performing a pull requ
  * @param content - The content of the file
  */
 export function getUserPrompt(fileName: string, content: string): string {
-    return `
+  return `
 You are a Software Architect performing a pull request review.
 Review the following file: **${fileName}**
 
-- Ensure high code quality, good architectural standards & maintainability.
 - Only comment on specific things that need to be changed or improved. 
 - Do not include the original source code in your feedback.
 - For anything that is important & needs to be fixed, be firm in your tone, not suggestive
@@ -28,6 +27,10 @@ Review the following file: **${fileName}**
 - For anything that is critical or a red flag, use the 🔴 icon.
 - For major issues that need fixing, use the 🟡 icon.
 - For minor improvements or suggestions, use the 🟢 icon.
+
+- Discard anything that is minor/suggestion 🟢
+- Focus only on architectural red flags and typos for 🔴
+- Ensure high code quality, good architectural standards & maintainability.
 
 Provide your review in valid JSON format.
 The output should be a JSON object with a single key "reviews" which is an array of objects.
