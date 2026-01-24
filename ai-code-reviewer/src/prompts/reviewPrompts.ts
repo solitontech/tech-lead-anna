@@ -5,10 +5,26 @@
  * Modify these prompts to customize the review behavior and focus areas.
  */
 
+import { env } from "../config/envVariables";
+
 /**
  * System prompt - defines the AI's role and persona
  */
 export const systemPrompt = `You are a Software Tech Lead performing a pull request review.`;
+
+/**
+ * Default guidelines for the AI review process.
+ */
+const defaultReviewGuidelines = `
+- Only comment on specific things that need to be changed or improved. 
+- Do not include the original source code in your feedback.
+- For anything that is important & needs to be fixed, be firm in your tone, not suggestive
+- For anything that is critical or a red flag, use the 🔴 icon.
+- For major issues that need fixing, use the 🟡 icon.
+- For minor improvements or suggestions, use the 🟢 icon.
+- Discard anything that is minor/suggestion 🟢
+- Focus on architecture, and just decent coding standards (but no need for perfection)
+- If you have many comments, pick no more than the 3 most important comments in every file.`;
 
 /**
  * User prompt template - defines what the AI should review for a specific file
@@ -16,39 +32,27 @@ export const systemPrompt = `You are a Software Tech Lead performing a pull requ
  * @param content - The content of the file
  */
 export function getUserPrompt(fileName: string, content: string): string {
+  const reviewGuidelines = env.AI_REVIEW_GUIDELINES || defaultReviewGuidelines;
+
   return `
 You are a Software Tech Lead performing a pull request review.
 Review the following file: **${fileName}**
 
-- Only comment on specific things that need to be changed or improved. 
-- Do not include the original source code in your feedback.
-- For anything that is important & needs to be fixed, be firm in your tone, not suggestive
+### SECTION 1: HOW TO DO THE REVIEW
+${reviewGuidelines}
 
-- For anything that is critical or a red flag, use the 🔴 icon.
-- For major issues that need fixing, use the 🟡 icon.
-- For minor improvements or suggestions, use the 🟢 icon.
-
-- Discard anything that is minor/suggestion 🟢
-- Focus on architecture, and just decent coding standards (but no need for perfection)
-- If you have many comments, pick no more than the 3 most important comments in every file.
-
+### SECTION 2: HOW TO RETURN THE REVIEWED DATA
 Provide your review in valid JSON format.
 The output should be a JSON object with a single key "reviews" which is an array of objects.
+
 Each object should have:
 - "line": The line number where the issue is located (1-based integer).
 - "severity": One of "critical", "major", "minor".
-- "comment": The review comment (use the icons 🔴, 🟡, 🟢 as verified before).
-
-Example format:
-{
-  "reviews": [
-    { "line": 10, "severity": "major", "comment": "🟡 Avoid using magic numbers..." }
-  ]
-}
+- "comment": The review comment (include the appropriate severity icon).
 
 Before returning the comments (if there are any) double check each line number against
 each comment to check if it's the right line. If not then find the right line and update
-the line number
+the line number.
 
 If the file looks good, return an empty array: { "reviews": [] }
 

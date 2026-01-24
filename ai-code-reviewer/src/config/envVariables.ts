@@ -15,6 +15,7 @@ export const env = {
 
     // Reviewer Configuration
     REVIEWER_NAME: process.env.REVIEWER_NAME,
+    AI_REVIEW_GUIDELINES: process.env.AI_REVIEW_GUIDELINES,
 };
 
 // Validate critical environment variables
