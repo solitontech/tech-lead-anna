@@ -16,13 +16,24 @@ export const env = {
     // Reviewer Configuration
     REVIEWER_NAME: process.env.REVIEWER_NAME,
     AI_REVIEW_GUIDELINES: process.env.AI_REVIEW_GUIDELINES,
+
+    // GitHub App Configuration
+    GITHUB_APP_ID: process.env.GITHUB_APP_ID,
+    GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
 };
 
 // Validate critical environment variables
 const missingVars = [];
-if (!env.AZDO_ORG_URL) missingVars.push("AZDO_ORG_URL");
-if (!env.AZDO_PAT) missingVars.push("AZDO_PAT");
 if (!env.AI_API_KEY) missingVars.push("AI_API_KEY");
+
+// Platform-specific validation
+const hasAzDo = !!(env.AZDO_ORG_URL && env.AZDO_PAT);
+const hasGitHub = !!(env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY);
+
+if (!hasAzDo && !hasGitHub) {
+    missingVars.push("Platform Config (AzDo or GitHub)");
+}
 
 if (missingVars.length > 0) {
     console.warn(`[CONFIG] Missing critical environment variables: ${missingVars.join(", ")}`);
