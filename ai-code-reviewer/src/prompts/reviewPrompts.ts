@@ -30,9 +30,10 @@ const defaultReviewGuidelines = `
  * User prompt template - defines what the AI should review for a specific file
  * @param fileName - The name/path of the file being reviewed
  * @param content - The content of the file
+ * @param customGuidelines - Optional project-specific guidelines
  */
-export function getUserPrompt(fileName: string, content: string): string {
-  const reviewGuidelines = env.AI_REVIEW_GUIDELINES || defaultReviewGuidelines;
+export function getUserPrompt(fileName: string, content: string, customGuidelines?: string): string {
+  const reviewGuidelines = customGuidelines || defaultReviewGuidelines;
 
   return `
 You are a Software Tech Lead performing a pull request review.

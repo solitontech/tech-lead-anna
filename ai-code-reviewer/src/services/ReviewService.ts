@@ -3,6 +3,7 @@ import { PlatformAdapter, ReviewStatus } from "../interfaces/PlatformAdapter";
 import { reviewWithAI } from "../utils/aiClient";
 import { shouldIgnoreFile } from "../config/ignoreFiles";
 import { cleanCodeContent } from "../utils/codeCleaner";
+import { env } from "../config/envVariables";
 
 export class ReviewService {
     constructor(private platform: PlatformAdapter) { }
@@ -30,6 +31,22 @@ export class ReviewService {
         const files = await this.platform.getChangedFiles();
         context.log(`[FILES] Found ${files.length} changed files`);
 
+        if (files.length === 0) return;
+
+        // Fetch custom guidelines from repo if configured
+        let repoGuidelines: string | undefined = undefined;
+        if (env.AI_REVIEW_GUIDELINES) {
+            try {
+                // Use the commitId of the first file to fetch the guidelines from the same version of code
+                repoGuidelines = await this.platform.getFileContent(env.AI_REVIEW_GUIDELINES, files[0].commitId);
+                if (repoGuidelines) {
+                    context.log(`[CONFIG] Using custom rules from repo: ${env.AI_REVIEW_GUIDELINES}`);
+                }
+            } catch (err) {
+                context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
+            }
+        }
+
         let hasRedFlags = false;
         let hasIssues = false;
 
@@ -49,7 +66,7 @@ export class ReviewService {
                     hasRedFlags = true;
                     await this.platform.postComment(file.path, undefined, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines.");
                 } else {
-                    const aiReviews = await reviewWithAI(file.path, content);
+                    const aiReviews = await reviewWithAI(file.path, content, repoGuidelines);
                     if (aiReviews.length > 0) {
                         hasIssues = true;
                         for (const review of aiReviews) {
