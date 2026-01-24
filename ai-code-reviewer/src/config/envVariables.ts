@@ -20,7 +20,6 @@ export const env = {
     // GitHub App Configuration
     GITHUB_APP_ID: process.env.GITHUB_APP_ID,
     GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET,
 };
 
 // Validate critical environment variables
