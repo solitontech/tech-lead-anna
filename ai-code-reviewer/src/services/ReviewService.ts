@@ -38,7 +38,7 @@ export class ReviewService {
         if (files.length === 0) return;
 
         // Fetch custom guidelines from repo if configured
-        let repoGuidelines: string | undefined = undefined;
+        let repoGuidelines: string = null;
         if (env.AI_REVIEW_GUIDELINES) {
             try {
                 // Use the commitId of the first file to fetch the guidelines from the same version of code
