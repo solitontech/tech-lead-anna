@@ -1,5 +1,5 @@
 import { PlatformAdapter, FileChange, ReviewStatus } from "../interfaces/PlatformAdapter";
-import { AzDoWebhookPayload } from "../types/azdo";
+import { AzDoIterationsResponse, AzDoWebhookPayload } from "../types/azdo";
 import azdo, { postReview, setPrVote } from "../utils/azdoClient";
 import { env } from "../config/envVariables";
 
@@ -42,7 +42,7 @@ export class AzDoAdapter implements PlatformAdapter {
     }
 
     async getChangedFiles(): Promise<FileChange[]> {
-        const iterationsRes = await azdo.get<any>(
+        const iterationsRes = await azdo.get<AzDoIterationsResponse>(
             `/${this.project}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}/iterations?api-version=7.1`
         );
 
@@ -56,7 +56,7 @@ export class AzDoAdapter implements PlatformAdapter {
             `/${this.project}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}/iterations/${latestIterationId}/changes?api-version=7.1`
         );
 
-        const changes = changesRes.data.changes || changesRes.data.value || [];
+        const changes = changesRes.data.changes || changesRes.data.value || changesRes.data.changeEntries || [];
         return changes
             .filter((c: any) => !c.item?.isFolder)
             .map((c: any) => ({

@@ -12,22 +12,26 @@ export class ReviewService {
         const prId = this.platform.getPRIdentifier();
         context.log(`[REVIEW] Starting review for PR ${prId}`);
 
+        context.log(`[VALIDATE] Validating webhook`);
         if (!await this.platform.validateWebhook()) {
             context.log(`[IGNORE] Invalid webhook or action`);
             return;
         }
 
+        context.log(`[REVIEW] Checking if PR should be processed`);
         if (!await this.platform.shouldProcessPR()) {
             context.log(`[IGNORE] PR should not be processed (already reviewed or reviewer not assigned)`);
             return;
         }
 
         try {
+            context.log(`[LOCK] Locking PR to prevent race conditions`);
             await this.platform.lockPR();
         } catch (err: any) {
             context.log(`[LOCK] Failed to lock PR: ${err.message}`);
         }
 
+        context.log(`[FILES] Fetching changed files`);
         const files = await this.platform.getChangedFiles();
         context.log(`[FILES] Found ${files.length} changed files`);
 

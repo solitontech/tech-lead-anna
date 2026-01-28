@@ -2,15 +2,12 @@
   "IsEncrypted": false,
   "Values": {
     "FUNCTIONS_WORKER_RUNTIME": "node",
-    "AZDO_ORG_URL": "",
-    "AZDO_PAT": "",
+    "AZDO_ORG_URL": "https://dev.azure.com/Soliton/",
+    "AZDO_PAT": "BUIigMStDWYviiEd0lxsw0bfwP7b58RpnWhsgTO9dH3shciTavGWJQQJ99CAACAAAAAZCOZXAAASAZDO4YcI",
     "AI_PROVIDER": "openai",
-    "AI_API_KEY": "",
-    "AI_MODEL": "gpt-4o",
+    "AI_API_KEY": "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",
+    "AI_MODEL": "gpt-5.2",
     "REVIEWER_NAME": "Tech Lead Anna",
-    "AI_REVIEW_GUIDELINES": "",
-    "GITHUB_APP_ID": "",
-    "GITHUB_APP_PRIVATE_KEY": "",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true"
   }
 }
