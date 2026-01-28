@@ -137,3 +137,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Azure Functions local settings
+ai-code-reviewer/local.settings.json
+
+# Test payloads
+ai-code-reviewer/test-files/

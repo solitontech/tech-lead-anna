@@ -49,6 +49,8 @@ export class ReviewService {
             } catch (err) {
                 context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
             }
+        } else {
+            context.log(`[CONFIG] No custom rules configured, using defaults.`);
         }
 
         let hasRedFlags = false;

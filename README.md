@@ -1,132 +1,93 @@
-# AI Code Reviewer (Tech Lead Anna)
+# Tech Lead Anna - AI Code Reviewer
 
-An intelligent, automated code reviewer built as an Azure Function. It integrates with **Azure DevOps (AzDo)** Pull Requests to provide architectural insights, catch potential issues, and ensure code quality using **OpenAI (GPT)**.
+An intelligent, automated code reviewer built as an Azure Function. It provides architectural insights, catches potential issues, and ensures code quality for **Azure DevOps (AzDo)** and **GitHub** Pull Requests using LLMs like **OpenAI (GPT)**, **Anthropic (Claude)**, and **Google (Gemini)**.
 
 ## Overview
 
-This tool acts as a "Software Architect" in your PRs. It listens for PR updates, fetches the changed files, cleans them (removing noise like Swagger docs while maintaining line mapping), and uses AI to post targeted review comments directly onto the relevant lines in Azure DevOps.
+Tech Lead Anna acts as a senior reviewer in your PRs. She:
+-   **Analyze changes** in real-time when a PR is opened or updated.
+-   **Catches Architectural Red Flags** (e.g., massive files > 1000 lines).
+-   **Provides Line-Level Feedback** directly on the code.
+-   **Supports Multiple AI Providers** out of the box.
+-   **Minimizes Noise** by ignoring binaries, assets, and documentation blocks.
 
-### Key Features
-- **Architectural Red Flags**: Helps to catch red flags
-- **Line-Level Accuracy**: Posts comments against the specific line in question
-- **Smart Cleaning**: Strips out noisy documentation (Swagger, etc.) to save tokens without losing context.
-- **Robust Integration**: Includes retry logic for rate limits and preliminary voting to prevent race conditions.
-- **Flexibility**: The prompt can be easily edited to suit your project's needs.
 ---
 
 ## Technical Breakdown
 
-The application is structured for modularity and maintainability:
+The application follows an **Adapter Pattern** for easy extension to new platforms:
 
 | Module | Description |
 | :--- | :--- |
-| **`PrReviewHook.ts`** | The main Azure Function entry point. Orchestrates the webhook event, iteration fetching, and the review loop. |
-| **`aiClient.ts`** | Manages OpenAI communication, retries, and severity mapping. |
-| **`azdoClient.ts`** | Centralized client for Azure DevOps REST API, handling authentication, threading, and voting. |
-| **`codeCleaner.ts`** | Pre-processes files to reduce token usage while generating a `lineMap` for accurate comment placement. |
-| **`envVariables.ts`** | Centralized, validated environment variable configuration. |
-| **`reviewPrompts.ts`** | Defines the "Software Architect" persona and specific review criteria. |
-| **`ignoreFiles.ts`** | Strategy for skipping non-code files (images, binaries, etc.). |
+| **`ReviewService.ts`** | Core, platform-agnostic review orchestration logic. |
+| **`PlatformAdapter.ts`** | Interface defining how to interact with a code host. |
+| **`AzDoAdapter.ts`** | Adapter for Azure DevOps REST API. |
+| **`GitHubAdapter.ts`** | Adapter for GitHub App API (using Octokit). |
+| **`aiClient.ts`** | Handles multi-LLM communication (OpenAI, Claude, Gemini). |
+| **`codeCleaner.ts`** | Strips out noisy comments for architectural analysis. |
+| **`reviewPrompts.ts`** | Defines the "Tech Lead" persona and review guidelines. |
 
 ---
 
-## Deployment Guide: Soliton
-
-If you are a member of the **Soliton** organization, "Tech Lead Anna" is already live and ready to join your PRs.
-
-### Steps to Enable:
-1.  Go to your Project in **Azure DevOps**.
-2.  Navigate to **Project Settings** > **Service Hooks**.
-3.  Click **+** (New Subscription) and select **Web Hooks**.
-4.  **Trigger Event**: Choose `Pull request updated`.
-5.  **Filter**: Set "Change" to `Reviewers changed`.
-6.  **Action (URL)**:
-    `https://ai-code-reviewer-atckafdffmcdcbbn.southindia-01.azurewebsites.net/api/PrReviewHook`
-7.  **Finish**: You're done! "Tech Lead Anna" will now automatically review any PR where she is added as a reviewer.
-
-*Note: The environment variables and PAT for "Tech Lead Anna" are already managed by Karthikeyan Balasubramanian.*
-
----
-
-## Deployment Guide: External Organizations
-
-To host your own version of the AI Reviewer, follow these steps:
-
-### 1. Prerequisites
-- An **Azure Subscription** to host the Function App.
-- An **OpenAI API Key**.
-- An **Azure DevOps Personal Access Token (PAT)** with "Code (Read & Write)" and "Threads (Read & Write)" permissions.
-
-### 2. Infrastructure Setup
-1.  **Clone the Repository**
-2.  **Deploy to Azure**:
-    - Build and deploy using the Azure Functions Core Tools: `func azure functionapp publish <Your-App-Name>`
-    - Or use the "Deploy to Azure" button if available in your CI/CD.
-
-### 3. Configuration (Environment Variables)
-Set the following variables in your Azure Function App's **Configuration**:
+## Configuration (Environment Variables)
 
 | Variable | Description |
 | :--- | :--- |
-| `AZDO_ORG_URL` | Your AzDo Org URL (e.g., `https://dev.azure.com/YourOrg`) |
-| `AZDO_PAT` | The PAT for the bot account. |
-| `OPENAI_API_KEY` | Your OpenAI API key. |
-| `OPENAI_MODEL` | The model to use (e.g., `gpt-4o`). |
-| `REVIEWER_NAME` | The display name of the bot account (e.g., "AI Architect"). |
+| `AI_PROVIDER` | `openai`, `anthropic` (or `claude`), or `google` (or `gemini`). |
+| `AI_API_KEY` | Your API key for the selected AI provider. |
+| `AI_MODEL` | The specific model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`, `gemini-1.5-pro`). |
+| `REVIEWER_NAME` | The display name used for AzDo reviewer identification. |
+| `AI_REVIEW_GUIDELINES`| (Optional) Filename in the repo root containing custom rules (e.g., `.ai-review-rules.md`). Defaults to senior tech lead guidelines if not found. |
 
-### 4. Configure Webhooks
-Follow the same steps as the Soliton guide above, but use the URL of **your own** deployed Azure Function.
+### Azure DevOps Specifics
+| Variable | Description |
+| :--- | :--- |
+| `AZDO_ORG_URL` | Your AzDo Org URL (e.g., `https://dev.azure.com/YourOrg`). |
+| `AZDO_PAT` | Personal Access Token with Code/Threads Read & Write permissions. |
+
+### GitHub Specifics
+| Variable | Description |
+| :--- | :--- |
+| `GITHUB_APP_ID` | Your GitHub App's ID. |
+| `GITHUB_APP_PRIVATE_KEY` | Your GitHub App's private key (PEM format). Use `\n` for newlines if setting as a single-line string. |
 
 ---
 
-## Development
+## Deployment Guide
 
-If you are a developer looking to run or test the AI Reviewer locally, follow these steps:
+### Azure Function Setup
+1.  **Deploy to Azure**: `func azure functionapp publish <Your-App-Name>`
+2.  **Set Configuration**: Add the environment variables above in the Azure Portal.
 
-### 1. Local Configuration
-Azure Functions use a `local.settings.json` file for local environment variables. This file is git-ignored for security.
+### Connecting to Azure DevOps
+1.  **Service Hook**: Create a `Web Hook` for the `Pull request updated` event.
+2.  **Filter**: Set to `Reviewers changed`.
+3.  **URL**: `https://<your-app>.azurewebsites.net/api/PrReviewHook`
 
-1.  Navigate to the `ai-code-reviewer` directory.
-2.  Create a new file named `local.settings.json`.
-3.  Add the following structure:
+### Connecting to GitHub (as an App)
+1.  **Create App**: Go to Developer Settings > GitHub Apps > New GitHub App.
+2.  **Permissions**: Set `Pull Requests: Read & Write` and `Contents: Read`.
+3.  **Webhook**: Point the App's webhook to `https://<your-app>.azurewebsites.net/api/GitHubReviewHook`.
+4.  **Install**: Install the app on your desired organizations or repositories.
 
-```json
-{
-  "IsEncrypted": false,
-  "Values": {
-    "FUNCTIONS_WORKER_RUNTIME": "node",
-    "AZDO_ORG_URL": "https://dev.azure.com/YourOrg",
-    "AZDO_PAT": "your-personal-access-token",
-    "OPENAI_API_KEY": "your-openai-api-key",
-    "OPENAI_MODEL": "your-preferred-model",
-    "REVIEWER_NAME": "your-reviewer-name",
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true"
-  }
-}
-```
+---
 
-### 2. Running Locally
-Ensure you have the [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) installed.
+## Features In Detail
 
-```bash
-cd ai-code-reviewer
-npm install
-npm run build
-func start
-```
-Your function will now be running at `http://localhost:7071/api/PrReviewHook`.
+### Custom Review Guidelines
+You can customize the reviewer's behavior per repository without changing any environment variables:
+1.  Set `AI_REVIEW_GUIDELINES` to a filename like `.ai-rules.md`.
+2.  Add that file to your repository root.
+3.  Tech Lead Anna will fetch this file at runtime (matching the PR's commit) and prioritize those instructions.
+4.  If the file is missing, she falls back to her high-standard "Software Architect" default persona.
 
-> **Note**: After any code changes, you must rebuild the project using `npm run build` before the changes take effect in the running function.
+---
 
-### 3. Testing Locally
-To test the function without triggering a real webhook from Azure DevOps, you can simulate a request using `curl`.
+## Local Development
 
-1. Create a directory for test data: `mkdir -p ai-code-reviewer/test-files`
-2. Create a file named `test-payload.json` inside that folder with a sample Azure DevOps webhook payload.
-3. While the function is running (`func start`), execute the following command:
+1.  **Clone & Install**: `npm install`
+2.  **Configure**: Create `ai-code-reviewer/local.settings.json` (see template in repo).
+3.  **Build**: `npm run build`
+4.  **Run**: `func start`
 
-```bash
-curl -X POST http://localhost:7071/api/PrReviewHook \
-  -H "Content-Type: application/json" \
-  --data @./ai-code-reviewer/test-files/test-payload.json
-```
+---

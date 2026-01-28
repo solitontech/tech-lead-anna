@@ -24,7 +24,8 @@ const defaultReviewGuidelines = `
 - For minor improvements or suggestions, use the 🟢 icon.
 - Discard anything that is minor/suggestion 🟢
 - Focus on architecture, and just decent coding standards (but no need for perfection)
-- If you have many comments, pick no more than the 3 most important comments in every file.`;
+- HOW MANY COMMENTS: If you have many comments, pick no more than the 3 most important comments in every file.
+`;
 
 /**
  * User prompt template - defines what the AI should review for a specific file
