@@ -87,8 +87,104 @@ You can customize the reviewer's behavior per repository without changing any en
 ## Local Development
 
 1.  **Clone & Install**: `npm install`
-2.  **Configure**: Create `ai-code-reviewer/local.settings.json` (see template in repo).
+2.  **Configure**: Create `ai-code-reviewer/local.settings.json` with all the env variables.
 3.  **Build**: `npm run build`
 4.  **Run**: `func start`
+
+### Local Testing
+
+To test the reviewer locally without triggering actual webhooks:
+
+#### 1. Create Test Payload
+
+Create a test payload file at `ai-code-reviewer/test-files/test-payload.json` with the appropriate format for your platform:
+
+**For Azure DevOps:**
+```json
+{
+    "eventType": "git.pullrequest.updated",
+    "resource": {
+        "pullRequestId": 123,
+        "repository": {
+            "id": "your-repo-id",
+            "project": {
+                "name": "Your Project Name"
+            }
+        },
+        "reviewers": [
+            {
+                "id": "reviewer-id",
+                "displayName": "Tech Lead Anna",
+                "vote": 0
+            }
+        ]
+    }
+}
+```
+
+**For GitHub:**
+```json
+{
+    "action": "opened",
+    "pull_request": {
+        "number": 123,
+        "head": {
+            "sha": "abc123def456"
+        },
+        "base": {
+            "repo": {
+                "owner": {
+                    "login": "your-org"
+                },
+                "name": "your-repo"
+            }
+        }
+    },
+    "repository": {
+        "owner": {
+            "login": "your-org"
+        },
+        "name": "your-repo"
+    },
+    "installation": {
+        "id": 12345678
+    }
+}
+```
+
+#### 2. Start the Function
+
+```bash
+cd ai-code-reviewer
+npm run build
+func start
+```
+
+#### 3. Trigger the Review
+
+**For Azure DevOps:**
+```bash
+curl -X POST http://localhost:7071/api/PrReviewHook \
+  -H "Content-Type: application/json" \
+  --data @./ai-code-reviewer/test-files/test-payload.json
+```
+
+**For GitHub:**
+```bash
+curl -X POST http://localhost:7071/api/GitHubReviewHook \
+  -H "Content-Type: application/json" \
+  --data @./ai-code-reviewer/test-files/test-payload.json
+```
+
+#### 4. Monitor Output
+
+Watch the terminal for logs showing:
+- Webhook validation
+- File retrieval
+- AI analysis
+- Comment posting
+
+**Note:** Make sure your test payload references an actual PR in your configured Azure DevOps organization or GitHub repository, as the function will attempt to fetch real PR data.
+
 
 ---

@@ -14,8 +14,8 @@ export const env = {
     AI_MODEL: process.env.AI_MODEL,
 
     // Reviewer Configuration
-    AZDO_REVIEWER_NAME: process.env.AZDO_REVIEWER_NAME || process.env.REVIEWER_NAME,
-    GITHUB_REVIEWER_NAME: process.env.GITHUB_REVIEWER_NAME || process.env.REVIEWER_NAME,
+    AZDO_REVIEWER_NAME: process.env.AZDO_REVIEWER_NAME,
+    GITHUB_REVIEWER_NAME: process.env.GITHUB_REVIEWER_NAME,
     AI_REVIEW_GUIDELINES: process.env.AI_REVIEW_GUIDELINES,
 
     // GitHub App Configuration

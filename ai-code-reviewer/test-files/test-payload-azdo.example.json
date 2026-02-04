@@ -1,0 +1,19 @@
+{
+    "eventType": "git.pullrequest.updated",
+    "resource": {
+        "pullRequestId": 123,
+        "repository": {
+            "id": "your-repo-id",
+            "project": {
+                "name": "Your Project Name"
+            }
+        },
+        "reviewers": [
+            {
+                "id": "reviewer-id",
+                "displayName": "Tech Lead Anna",
+                "vote": 0
+            }
+        ]
+    }
+}

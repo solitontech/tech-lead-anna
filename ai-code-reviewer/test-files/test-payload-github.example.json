@@ -1,0 +1,26 @@
+{
+    "action": "opened",
+    "pull_request": {
+        "number": 123,
+        "head": {
+            "sha": "abc123def456"
+        },
+        "base": {
+            "repo": {
+                "owner": {
+                    "login": "your-org"
+                },
+                "name": "your-repo"
+            }
+        }
+    },
+    "repository": {
+        "owner": {
+            "login": "your-org"
+        },
+        "name": "your-repo"
+    },
+    "installation": {
+        "id": 12345678
+    }
+}
