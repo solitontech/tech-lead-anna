@@ -37,21 +37,7 @@ export class ReviewService {
 
         if (files.length === 0) return;
 
-        // Fetch custom guidelines from repo if configured
-        let repoGuidelines: string = null;
-        if (env.AI_REVIEW_GUIDELINES) {
-            try {
-                // Use the commitId of the first file to fetch the guidelines from the same version of code
-                repoGuidelines = await this.platform.getFileContent(env.AI_REVIEW_GUIDELINES, files[0].commitId);
-                if (repoGuidelines) {
-                    context.log(`[CONFIG] Using custom rules from repo: ${env.AI_REVIEW_GUIDELINES}`);
-                }
-            } catch (err) {
-                context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
-            }
-        } else {
-            context.log(`[CONFIG] No custom rules configured, using defaults.`);
-        }
+        const repoGuidelines = await this.getRepoGuidelines(context, files[0].commitId);
 
         let hasRedFlags = false;
         let hasIssues = false;
@@ -62,32 +48,61 @@ export class ReviewService {
                 continue;
             }
 
-            try {
-                const content = await this.platform.getFileContent(file.path, file.commitId);
-                const cleanedContent = cleanCodeContent(content, file.path);
-                const cleanedLineCount = cleanedContent.split('\n').length;
+            const result = await this.reviewFile(context, file, repoGuidelines);
+            if (result.hasRedFlags) hasRedFlags = true;
+            if (result.hasIssues) hasIssues = true;
 
-                const isMarkdown = file.path.toLowerCase().endsWith('.md');
-                if (cleanedLineCount > 1000 && !isMarkdown) {
-                    hasRedFlags = true;
-                    await this.platform.postComment(file.path, undefined, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines.");
-                } else {
-                    const aiReviews = await reviewWithAI(file.path, content, repoGuidelines);
-                    if (aiReviews.length > 0) {
-                        hasIssues = true;
-                        for (const review of aiReviews) {
-                            await this.platform.postComment(file.path, review.line, review.comment);
-                        }
-                    }
-                }
-            } catch (err: any) {
-                context.log(`[ERROR] Failed to review ${file.path}: ${err.message}`);
-            }
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         const status: ReviewStatus = hasRedFlags ? 'changes_requested' : hasIssues ? 'commented' : 'approved';
         await this.platform.setFinalStatus(status);
         context.log(`[FINAL] Review completed with status: ${status}`);
+    }
+
+    private async getRepoGuidelines(context: InvocationContext, commitId: string): Promise<string | null> {
+        if (env.AI_REVIEW_GUIDELINES) {
+            try {
+                const repoGuidelines = await this.platform.getFileContent(env.AI_REVIEW_GUIDELINES, commitId);
+                if (repoGuidelines) {
+                    context.log(`[CONFIG] Using custom rules from repo: ${env.AI_REVIEW_GUIDELINES}`);
+                    return repoGuidelines;
+                }
+            } catch (err) {
+                context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
+            }
+        } else {
+            context.log(`[CONFIG] No custom rules configured, using defaults.`);
+        }
+        return null;
+    }
+
+    private async reviewFile(context: InvocationContext, file: { path: string; commitId: string }, repoGuidelines: string | null): Promise<{ hasRedFlags: boolean, hasIssues: boolean }> {
+        let hasRedFlags = false;
+        let hasIssues = false;
+
+        try {
+            const content = await this.platform.getFileContent(file.path, file.commitId);
+            const cleanedContent = cleanCodeContent(content, file.path);
+            const cleanedLineCount = cleanedContent.split('\n').length;
+
+            const isMarkdown = file.path.toLowerCase().endsWith('.md');
+            if (cleanedLineCount > 1000 && !isMarkdown) {
+                hasRedFlags = true;
+                await this.platform.postComment(file.path, undefined, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines.");
+            } else {
+                const aiReviews = await reviewWithAI(file.path, content, repoGuidelines);
+                if (aiReviews.length > 0) {
+                    hasIssues = true;
+                    for (const review of aiReviews) {
+                        await this.platform.postComment(file.path, review.line, review.comment);
+                    }
+                }
+            }
+        } catch (err: any) {
+            context.log(`[ERROR] Failed to review ${file.path}: ${err.message}`);
+        }
+
+        return { hasRedFlags, hasIssues };
     }
 }
