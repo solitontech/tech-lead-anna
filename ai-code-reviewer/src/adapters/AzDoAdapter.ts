@@ -27,7 +27,7 @@ export class AzDoAdapter implements PlatformAdapter {
             `/${this.project}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}?api-version=7.1`
         );
         const reviewers = prRes.data.reviewers || [];
-        const reviewer = reviewers.find((r: any) => r.displayName === env.REVIEWER_NAME);
+        const reviewer = reviewers.find((r: any) => r.displayName === env.AZDO_REVIEWER_NAME);
 
         if (!reviewer) return false;
 

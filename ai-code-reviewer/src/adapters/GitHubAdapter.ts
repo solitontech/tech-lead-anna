@@ -43,8 +43,8 @@ export class GitHubAdapter implements PlatformAdapter {
             pull_number: this.prNumber,
         });
 
-        // The bot's login usually contains the App name or the configured REVIEWER_NAME
-        const botName = env.REVIEWER_NAME.toLowerCase().replace(/\s+/g, '-');
+        // The bot's login usually contains the App name or the configured GITHUB_REVIEWER_NAME
+        const botName = env.GITHUB_REVIEWER_NAME.toLowerCase().replace(/\s+/g, '-');
         return !reviews.some(r =>
             r.user?.login.toLowerCase().includes(botName) &&
             r.commit_id === this.headSha
@@ -57,7 +57,7 @@ export class GitHubAdapter implements PlatformAdapter {
             owner: this.owner,
             repo: this.repo,
             issue_number: this.prNumber,
-            body: `🤖 **${env.REVIEWER_NAME}** is reviewing this Pull Request...`,
+            body: `🤖 **${env.GITHUB_REVIEWER_NAME}** is reviewing this Pull Request...`,
         });
     }
 
@@ -119,10 +119,10 @@ export class GitHubAdapter implements PlatformAdapter {
         };
 
         const body = status === 'approved'
-            ? `✅ Pull Request approved by **${env.REVIEWER_NAME}**.`
+            ? `✅ Pull Request approved by **${env.GITHUB_REVIEWER_NAME}**.`
             : status === 'changes_requested'
-                ? `🔴 Major issues found by **${env.REVIEWER_NAME}**. Please address the feedback.`
-                : `🟡 Suggestions provided by **${env.REVIEWER_NAME}** for improvement.`;
+                ? `🔴 Major issues found by **${env.GITHUB_REVIEWER_NAME}**. Please address the feedback.`
+                : `🟡 Suggestions provided by **${env.GITHUB_REVIEWER_NAME}** for improvement.`;
 
         await this.octokit.pulls.createReview({
             owner: this.owner,

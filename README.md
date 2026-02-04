@@ -36,7 +36,6 @@ The application follows an **Adapter Pattern** for easy extension to new platfor
 | `AI_PROVIDER` | `openai`, `anthropic` (or `claude`), or `google` (or `gemini`). |
 | `AI_API_KEY` | Your API key for the selected AI provider. |
 | `AI_MODEL` | The specific model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`, `gemini-1.5-pro`). |
-| `REVIEWER_NAME` | The display name used for AzDo reviewer identification. |
 | `AI_REVIEW_GUIDELINES`| (Optional) Filename in the repo root containing custom rules (e.g., `.ai-review-rules.md`). Defaults to senior tech lead guidelines if not found. |
 
 ### Azure DevOps Specifics
@@ -44,12 +43,14 @@ The application follows an **Adapter Pattern** for easy extension to new platfor
 | :--- | :--- |
 | `AZDO_ORG_URL` | Your AzDo Org URL (e.g., `https://dev.azure.com/YourOrg`). |
 | `AZDO_PAT` | Personal Access Token with Code/Threads Read & Write permissions. |
+| `AZDO_REVIEWER_NAME` | The display name used for AzDo reviewer identification (e.g., `Tech Lead Anna`). Falls back to `REVIEWER_NAME` if not set. |
 
 ### GitHub Specifics
 | Variable | Description |
 | :--- | :--- |
 | `GITHUB_APP_ID` | Your GitHub App's ID. |
-| `GITHUB_APP_PRIVATE_KEY` | Your GitHub App's private key (PEM format). Use `\n` for newlines if setting as a single-line string. |
+| `GITHUB_APP_PRIVATE_KEY` | Your GitHub App's private key (PEM format). Use `\\n` for newlines if setting as a single-line string. |
+| `GITHUB_REVIEWER_NAME` | The display name/slug used for GitHub reviewer identification (e.g., `tech-lead-anna`). Falls back to `REVIEWER_NAME` if not set. |
 
 ---
 
