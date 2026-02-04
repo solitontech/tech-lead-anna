@@ -66,8 +66,9 @@ export async function postReview(
         };
     }
 
+    const encodedProject = encodeURIComponent(project);
     await azdo.post(
-        `/${project}/_apis/git/repositories/${repoId}/pullRequests/${prId}/threads?api-version=7.1`,
+        `/${encodedProject}/_apis/git/repositories/${repoId}/pullRequests/${prId}/threads?api-version=7.1`,
         threadBody
     );
 }

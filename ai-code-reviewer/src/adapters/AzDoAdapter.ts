@@ -23,8 +23,9 @@ export class AzDoAdapter implements PlatformAdapter {
     }
 
     async shouldProcessPR(): Promise<boolean> {
+        const encodedProject = encodeURIComponent(this.project);
         const prRes = await azdo.get<any>(
-            `/${this.project}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}?api-version=7.1`
+            `/${encodedProject}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}?api-version=7.1`
         );
         const reviewers = prRes.data.reviewers || [];
         const reviewer = reviewers.find((r: any) => r.displayName === env.AZDO_REVIEWER_NAME);
@@ -42,8 +43,9 @@ export class AzDoAdapter implements PlatformAdapter {
     }
 
     async getChangedFiles(): Promise<FileChange[]> {
+        const encodedProject = encodeURIComponent(this.project);
         const iterationsRes = await azdo.get<AzDoIterationsResponse>(
-            `/${this.project}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}/iterations?api-version=7.1`
+            `/${encodedProject}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}/iterations?api-version=7.1`
         );
 
         if (!iterationsRes.data.value?.length) return [];
@@ -53,7 +55,7 @@ export class AzDoAdapter implements PlatformAdapter {
         const commitId = latestIteration.sourceRefCommit.commitId;
 
         const changesRes = await azdo.get<any>(
-            `/${this.project}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}/iterations/${latestIterationId}/changes?api-version=7.1`
+            `/${encodedProject}/_apis/git/repositories/${this.repoId}/pullRequests/${this.prId}/iterations/${latestIterationId}/changes?api-version=7.1`
         );
 
         const changes = changesRes.data.changes || changesRes.data.value || changesRes.data.changeEntries || [];
@@ -66,8 +68,9 @@ export class AzDoAdapter implements PlatformAdapter {
     }
 
     async getFileContent(path: string, commitId: string): Promise<string> {
+        const encodedProject = encodeURIComponent(this.project);
         const res = await azdo.get<any>(
-            `/${this.project}/_apis/git/repositories/${this.repoId}/items`,
+            `/${encodedProject}/_apis/git/repositories/${this.repoId}/items`,
             {
                 params: {
                     path,
