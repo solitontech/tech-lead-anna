@@ -37,19 +37,40 @@ export class GitHubAdapter implements PlatformAdapter {
     }
 
     async shouldProcessPR(): Promise<boolean> {
-        // Check if a review by our specific bot already exists for this head SHA to avoid loops.
+        // First, check if the bot is assigned as a reviewer
+        const { data: pr } = await this.octokit.pulls.get({
+            owner: this.owner,
+            repo: this.repo,
+            pull_number: this.prNumber,
+        });
+
+        const botName = env.GITHUB_REVIEWER_NAME.toLowerCase().replace(/\s+/g, '-');
+
+        // Check if bot is in requested_reviewers (users or teams)
+        const isRequestedReviewer = pr.requested_reviewers?.some(
+            (reviewer: any) => reviewer.login?.toLowerCase().includes(botName)
+        ) || pr.requested_teams?.some(
+            (team: any) => team.name?.toLowerCase().includes(botName)
+        );
+
+        // If not assigned as reviewer, don't process
+        if (!isRequestedReviewer) {
+            return false;
+        }
+
+        // Second, check if a review by our bot already exists for this head SHA to avoid loops
         const { data: reviews } = await this.octokit.pulls.listReviews({
             owner: this.owner,
             repo: this.repo,
             pull_number: this.prNumber,
         });
 
-        // The bot's login usually contains the App name or the configured GITHUB_REVIEWER_NAME
-        const botName = env.GITHUB_REVIEWER_NAME.toLowerCase().replace(/\s+/g, '-');
-        return !reviews.some(r =>
+        const hasReviewed = reviews.some(r =>
             r.user?.login.toLowerCase().includes(botName) &&
             r.commit_id === this.headSha
         );
+
+        return !hasReviewed;
     }
 
     async lockPR(): Promise<void> {

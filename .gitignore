@@ -141,5 +141,11 @@ vite.config.ts.timestamp-*
 # Azure Functions local settings
 ai-code-reviewer/local.settings.json
 
-# Test payloads
-ai-code-reviewer/test-files/
+# Test payloads (but keep example templates)
+ai-code-reviewer/test-files/test-payload.json
+ai-code-reviewer/test-files/test-payload-*.json
+!ai-code-reviewer/test-files/*.example.json
+
+# GitHub installation guide with environment-specific details
+GITHUB-INSTALL.md
+
