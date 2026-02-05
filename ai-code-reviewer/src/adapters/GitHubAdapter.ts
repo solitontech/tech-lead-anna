@@ -121,7 +121,7 @@ export class GitHubAdapter implements PlatformAdapter {
                     owner: this.owner,
                     repo: this.repo,
                     pull_number: this.prNumber,
-                    body: comment,
+                    body: `**File: ${path}** (Line ${line})\n\n${comment}`,
                     commit_id: this.headSha,
                     path: path,
                     line: line,
