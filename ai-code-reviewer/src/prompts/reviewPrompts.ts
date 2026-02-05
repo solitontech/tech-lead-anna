@@ -48,13 +48,14 @@ Provide your review in valid JSON format.
 The output should be a JSON object with a single key "reviews" which is an array of objects.
 
 Each object should have:
-- "line": The line number where the issue is located (1-based integer).
+- "startLine": The start line number where the issue is located (1-based integer).
+- "endLine": The end line number where the issue is located (1-based integer).
 - "severity": One of "critical", "major", "minor".
 - "comment": The review comment (include the appropriate severity icon).
 
-Before returning the comments (if there are any) double check each line number against
-each comment to check if it's the right line. If not then find the right line and update
-the line number.
+Before returning the comments double check each line number against
+each comment to ensure it's right. If not then find the right start and end lines and update
+the line numbers.
 
 If the file looks good, return an empty array: { "reviews": [] }
 

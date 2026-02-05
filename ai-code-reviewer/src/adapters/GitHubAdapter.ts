@@ -113,29 +113,40 @@ export class GitHubAdapter implements PlatformAdapter {
         return "";
     }
 
-    async postComment(path: string, line: number | undefined, comment: string): Promise<void> {
-        if (line && line > 0) {
+    async postComment(path: string, startLine: number | undefined, endLine: number | undefined, comment: string): Promise<void> {
+        if (endLine && endLine > 0) {
             try {
-                // Try to post as a line-specific review comment
-                await this.octokit.pulls.createReviewComment({
+                // Prepare review comment parameters
+                const reviewComment: any = {
                     owner: this.owner,
                     repo: this.repo,
                     pull_number: this.prNumber,
-                    body: `**File: ${path}** (Line ${line})\n\n${comment}`,
+                    body: comment,
                     commit_id: this.headSha,
                     path: path,
-                    line: line,
+                    line: endLine,  // Required: end line
                     side: "RIGHT"
-                });
+                };
+
+                // Add multi-line support if startLine is different from endLine
+                if (startLine && startLine < endLine) {
+                    reviewComment.start_line = startLine;
+                    reviewComment.start_side = "RIGHT";
+                }
+
+                await this.octokit.pulls.createReviewComment(reviewComment);
             } catch (error: any) {
                 // If line can't be resolved (422 error), fall back to file-level comment
                 if (error.status === 422) {
-                    this.context.log(`[GitHub] Line ${line} for file ${path} not in diff, posting as file-level comment`);
+                    const lineInfo = startLine && startLine < endLine
+                        ? `Lines ${startLine}-${endLine}`
+                        : `Line ${endLine}`;
+                    this.context.log(`[GitHub] ${lineInfo} for file ${path} not in diff, posting as file-level comment`);
                     await this.octokit.issues.createComment({
                         owner: this.owner,
                         repo: this.repo,
                         issue_number: this.prNumber,
-                        body: `**File: ${path}** (Line ${line})\n\n${comment}`,
+                        body: `**File: ${path}** (${lineInfo} not in diff, posting as file-level comment)\n\n${comment}`,
                     });
                 } else {
                     throw error; // Re-throw other errors

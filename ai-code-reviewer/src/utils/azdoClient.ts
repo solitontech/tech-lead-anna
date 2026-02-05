@@ -41,7 +41,8 @@ export async function postReview(
     prId: number,
     content: string,
     filePath?: string,
-    lineNumber?: number
+    startLine?: number,
+    endLine?: number
 ) {
     const threadBody: any = {
         comments: [
@@ -54,11 +55,14 @@ export async function postReview(
         status: 1
     };
 
-    if (filePath && lineNumber) {
+    if (filePath && endLine) {
+        // Use endLine as the primary line, startLine for ranges
+        const actualStartLine = startLine && startLine < endLine ? startLine : endLine;
+
         threadBody.threadContext = {
             filePath: filePath,
-            rightFileStart: { line: lineNumber, offset: 1 },
-            rightFileEnd: { line: lineNumber, offset: 1 }
+            rightFileStart: { line: actualStartLine, offset: 1 },
+            rightFileEnd: { line: endLine, offset: 1 }
         };
     } else if (filePath) {
         threadBody.threadContext = {

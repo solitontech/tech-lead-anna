@@ -85,8 +85,8 @@ export class AzDoAdapter implements PlatformAdapter {
         return res.data.content || "";
     }
 
-    async postComment(path: string, line: number | undefined, comment: string): Promise<void> {
-        await postReview(this.project, this.repoId, this.prId, comment, path, line);
+    async postComment(path: string, startLine: number | undefined, endLine: number | undefined, comment: string): Promise<void> {
+        await postReview(this.project, this.repoId, this.prId, comment, path, startLine, endLine);
     }
 
     async setFinalStatus(status: ReviewStatus): Promise<void> {

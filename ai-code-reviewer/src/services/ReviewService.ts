@@ -70,13 +70,13 @@ export class ReviewService {
                 const isMarkdown = file.path.toLowerCase().endsWith('.md');
                 if (cleanedLineCount > 1000 && !isMarkdown) {
                     hasRedFlags = true;
-                    await this.platform.postComment(file.path, undefined, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines.");
+                    await this.platform.postComment(file.path, undefined, undefined, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines.");
                 } else {
                     const aiReviews = await reviewWithAI(file.path, content, repoGuidelines);
                     if (aiReviews.length > 0) {
                         hasIssues = true;
                         for (const review of aiReviews) {
-                            await this.platform.postComment(file.path, review.line, review.comment);
+                            await this.platform.postComment(file.path, review.startLine, review.endLine, review.comment);
                         }
                     }
                 }
