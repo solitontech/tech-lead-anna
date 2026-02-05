@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
+import { InvocationContext } from "@azure/functions";
 import { PlatformAdapter, FileChange, ReviewStatus } from "../interfaces/PlatformAdapter";
 import { GitHubWebhookPayload } from "../types/github";
 import { env } from "../config/envVariables";
@@ -13,12 +14,14 @@ export class GitHubAdapter implements PlatformAdapter {
     private repo: string;
     private prNumber: number;
     private headSha: string;
+    private context: InvocationContext;
 
-    constructor(private payload: GitHubWebhookPayload) {
+    constructor(private payload: GitHubWebhookPayload, context: InvocationContext) {
         this.owner = payload.repository.owner.login;
         this.repo = payload.repository.name;
         this.prNumber = payload.pull_request.number;
         this.headSha = payload.pull_request.head.sha;
+        this.context = context;
 
         this.octokit = new Octokit({
             authStrategy: createAppAuth,
@@ -112,16 +115,32 @@ export class GitHubAdapter implements PlatformAdapter {
 
     async postComment(path: string, line: number | undefined, comment: string): Promise<void> {
         if (line && line > 0) {
-            await this.octokit.pulls.createReviewComment({
-                owner: this.owner,
-                repo: this.repo,
-                pull_number: this.prNumber,
-                body: comment,
-                commit_id: this.headSha,
-                path: path,
-                line: line,
-                side: "RIGHT"
-            });
+            try {
+                // Try to post as a line-specific review comment
+                await this.octokit.pulls.createReviewComment({
+                    owner: this.owner,
+                    repo: this.repo,
+                    pull_number: this.prNumber,
+                    body: comment,
+                    commit_id: this.headSha,
+                    path: path,
+                    line: line,
+                    side: "RIGHT"
+                });
+            } catch (error: any) {
+                // If line can't be resolved (422 error), fall back to file-level comment
+                if (error.status === 422) {
+                    this.context.log(`[GitHub] Line ${line} for file ${path} not in diff, posting as file-level comment`);
+                    await this.octokit.issues.createComment({
+                        owner: this.owner,
+                        repo: this.repo,
+                        issue_number: this.prNumber,
+                        body: `**File: ${path}** (Line ${line})\n\n${comment}`,
+                    });
+                } else {
+                    throw error; // Re-throw other errors
+                }
+            }
         } else {
             // General file-level comment
             await this.octokit.issues.createComment({

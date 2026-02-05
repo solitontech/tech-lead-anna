@@ -15,7 +15,7 @@ app.http("GitHubReviewHook", {
             context.log(`[GitHub] Received webhook for PR #${payload.pull_request.number}`);
 
             // Validation and adapter initialization
-            const adapter = new GitHubAdapter(payload);
+            const adapter = new GitHubAdapter(payload, context);
             const reviewService = new ReviewService(adapter);
 
             await reviewService.reviewPullRequest(context);
