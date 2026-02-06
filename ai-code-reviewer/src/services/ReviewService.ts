@@ -38,24 +38,7 @@ export class ReviewService {
         if (files.length === 0) return;
 
         // Fetch custom guidelines from repo if configured
-        let repoGuidelines: string = null;
-        if (env.AI_REVIEW_GUIDELINES) {
-            try {
-                // Use the commitId of the first file to fetch the guidelines from the same version of code
-                repoGuidelines = await this.platform.getFileContent(env.AI_REVIEW_GUIDELINES, files[0].commitId);
-                if (repoGuidelines && repoGuidelines.trim().length > 0) {
-                    context.log(`[CONFIG] Using custom rules from repo: ${env.AI_REVIEW_GUIDELINES}`);
-                } else if (repoGuidelines && repoGuidelines.trim().length === 0) {
-                    context.log(`[CONFIG] Custom rules file is empty at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
-                } else {
-                    context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
-                }
-            } catch (err) {
-                context.log(`[CONFIG] Error fetching custom rules at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
-            }
-        } else {
-            context.log(`[CONFIG] No custom rules configured, using defaults.`);
-        }
+        const repoGuidelines = await this.fetchCustomGuidelines(context, files[0]?.commitId);
 
         let hasRedFlags = false;
         let hasIssues = false;
@@ -93,5 +76,42 @@ export class ReviewService {
         const status: ReviewStatus = hasRedFlags ? 'changes_requested' : hasIssues ? 'commented' : 'approved';
         await this.platform.setFinalStatus(status);
         context.log(`[FINAL] Review completed with status: ${status}`);
+    }
+
+    /**
+     * Fetches custom review guidelines from the repository if configured.
+     * @param context - The invocation context for logging
+     * @param commitId - The commit ID to fetch the guidelines from
+     * @returns The custom guidelines content, or null if not found/configured
+     */
+    private async fetchCustomGuidelines(context: InvocationContext, commitId?: string): Promise<string | null> {
+        if (!env.AI_REVIEW_GUIDELINES) {
+            context.log(`[CONFIG] No custom rules configured, using defaults.`);
+            return null;
+        }
+
+        if (!commitId) {
+            context.log(`[CONFIG] No commit ID available, using defaults.`);
+            return null;
+        }
+
+        try {
+            // Use the commitId to fetch the guidelines from the same version of code
+            const repoGuidelines = await this.platform.getFileContent(env.AI_REVIEW_GUIDELINES, commitId);
+
+            if (repoGuidelines && repoGuidelines.trim().length > 0) {
+                context.log(`[CONFIG] Using custom rules from repo: ${env.AI_REVIEW_GUIDELINES}`);
+                return repoGuidelines;
+            } else if (repoGuidelines && repoGuidelines.trim().length === 0) {
+                context.log(`[CONFIG] Custom rules file is empty at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
+                return null;
+            } else {
+                context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
+                return null;
+            }
+        } catch (err) {
+            context.log(`[CONFIG] Error fetching custom rules at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
+            return null;
+        }
     }
 }
