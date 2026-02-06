@@ -43,11 +43,15 @@ export class ReviewService {
             try {
                 // Use the commitId of the first file to fetch the guidelines from the same version of code
                 repoGuidelines = await this.platform.getFileContent(env.AI_REVIEW_GUIDELINES, files[0].commitId);
-                if (repoGuidelines) {
+                if (repoGuidelines && repoGuidelines.trim().length > 0) {
                     context.log(`[CONFIG] Using custom rules from repo: ${env.AI_REVIEW_GUIDELINES}`);
+                } else if (repoGuidelines && repoGuidelines.trim().length === 0) {
+                    context.log(`[CONFIG] Custom rules file is empty at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
+                } else {
+                    context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
                 }
             } catch (err) {
-                context.log(`[CONFIG] No custom rules found at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
+                context.log(`[CONFIG] Error fetching custom rules at ${env.AI_REVIEW_GUIDELINES}, using defaults.`);
             }
         } else {
             context.log(`[CONFIG] No custom rules configured, using defaults.`);
