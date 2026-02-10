@@ -57,13 +57,13 @@ The application follows an **Adapter Pattern** for easy extension to new platfor
 ## Deployment Guide
 
 ### Azure Function Setup
-1.  **Deploy to Azure**: `func azure functionapp publish <Your-App-Name>`
+1.  **Deploy to Azure**: Create an Azure function app and deploy the code to it.
 2.  **Set Configuration**: Add the environment variables above in the Azure Portal.
 
 ### Connecting to Azure DevOps
-1.  **Service Hook**: Create a `Web Hook` for the `Pull request updated` event.
+1.  **Service Hook**: Create a `Web Hook` for the `Pull request updated` event in your azdo repository.
 2.  **Filter**: Set to `Reviewers changed`.
-3.  **URL**: `https://<your-app>.azurewebsites.net/api/PrReviewHook`
+3.  **URL**: Set it to your azure function url:`https://<your-app>.azurewebsites.net/api/PrReviewHook`
 
 ### Connecting to GitHub (as an App)
 1.  **Create App**: Go to Developer Settings > GitHub Apps > New GitHub App.
@@ -73,14 +73,12 @@ The application follows an **Adapter Pattern** for easy extension to new platfor
 
 ---
 
-## Features In Detail
-
-### Custom Review Guidelines
+## Custom Review Guidelines
 You can customize the reviewer's behavior per repository without changing any environment variables:
 1.  Set `AI_REVIEW_GUIDELINES` to a filename like `.ai-rules.md`.
 2.  Add that file to your repository root.
-3.  Tech Lead Anna will fetch this file at runtime (matching the PR's commit) and prioritize those instructions.
-4.  If the file is missing, she falls back to her high-standard "Software Architect" default persona.
+3.  Tech Lead Anna will fetch this file at runtime use those instructions.
+4.  If no custom instructions are provided, then the AI reviewer will use the default instructions provided in the `reviewPromots.ts` file.
 
 ---
 
