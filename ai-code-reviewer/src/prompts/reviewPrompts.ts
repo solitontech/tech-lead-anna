@@ -48,7 +48,7 @@ You are a Software Tech Lead performing a pull request review.
 Review the following file: **${fileName}**
 
 ### IMPORTANT INSTRUCTIONS
-- If you have too many comments, pick the top 15 most important ones only.
+- If you have too many comments, pick the top 10 most important ones ONLY.
 ${customGuidelines ? '- **Custom guidelines are provided below. You MUST strictly follow them and ONLY review based on those guidelines.**' : ''}
 
 ${guidelinesSection}

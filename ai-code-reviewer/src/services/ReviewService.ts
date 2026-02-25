@@ -59,6 +59,11 @@ export class ReviewService {
 
         let hasRedFlags = false;
         let hasIssues = false;
+        const MAX_REVIEW_COMMENTS = 15;
+        const SEVERITY_PRIORITY: Record<string, number> = { critical: 0, major: 1, minor: 2 };
+
+        // Collect all comments from all files first
+        const allComments: { filePath: string; startLine?: number; endLine?: number; severity: string; comment: string }[] = [];
 
         for (const file of files) {
             if (shouldIgnoreFile(file.path)) {
@@ -74,13 +79,23 @@ export class ReviewService {
                 const isMarkdown = file.path.toLowerCase().endsWith('.md');
                 if (cleanedLineCount > 1000 && !isMarkdown) {
                     hasRedFlags = true;
-                    await this.platform.postComment(file.path, undefined, undefined, "🔴 **Architectural Red Flag**: This file exceeds 1000 lines.");
+                    allComments.push({
+                        filePath: file.path,
+                        severity: 'critical',
+                        comment: "🔴 **Architectural Red Flag**: This file exceeds 1000 lines."
+                    });
                 } else {
                     const aiReviews = await reviewWithAI(file.path, content, repoGuidelines);
                     if (aiReviews.length > 0) {
                         hasIssues = true;
                         for (const review of aiReviews) {
-                            await this.platform.postComment(file.path, review.startLine, review.endLine, review.comment);
+                            allComments.push({
+                                filePath: file.path,
+                                startLine: review.startLine,
+                                endLine: review.endLine,
+                                severity: review.severity,
+                                comment: review.comment
+                            });
                         }
                     }
                 }
@@ -88,6 +103,17 @@ export class ReviewService {
                 context.log(`[ERROR] Failed to review ${file.path}: ${err.message}`);
             }
             await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Sort by severity priority (critical first, then major, then minor)
+        allComments.sort((a, b) => (SEVERITY_PRIORITY[a.severity] ?? 3) - (SEVERITY_PRIORITY[b.severity] ?? 3));
+
+        // Post only the top N most critical comments
+        const topComments = allComments.slice(0, MAX_REVIEW_COMMENTS);
+        context.log(`[REVIEW COMMENT COUNT] Collected ${allComments.length} total comments, posting top ${topComments.length}`);
+
+        for (const comment of topComments) {
+            await this.platform.postComment(comment.filePath, comment.startLine, comment.endLine, comment.comment);
         }
 
         const status: ReviewStatus = hasRedFlags ? 'changes_requested' : hasIssues ? 'commented' : 'approved';
