@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { systemPrompt, getUserPrompt } from "../prompts/reviewPrompts";
 import { env } from "../config/envVariables";
 import { AIProvider, PROVIDER_MAPPING } from "../types/providers";
+import { LoggerService } from "../services/LoggerService";
 
 /**
  * AI Review Comment Interface
@@ -23,7 +24,8 @@ export async function reviewWithAI(
     fileName: string,
     content: string,
     customGuidelines?: string,
-    attempt: number = 1
+    attempt: number = 1,
+    logger?: LoggerService
 ): Promise<AIReviewComment[]> {
     try {
         let rawResponse: string | null = null;
@@ -48,8 +50,8 @@ export async function reviewWithAI(
             const parsed = JSON.parse(cleanedJson);
             return parsed.reviews || [];
         } catch (parseErr) {
-            console.error(`Failed to parse ${provider} JSON response`, parseErr);
-            console.debug("Raw content:", rawResponse);
+            logger?.error("AI", `Failed to parse ${provider} JSON response`, parseErr as Error);
+            logger?.debug("AI", `Raw response: ${rawResponse}`);
             return [];
         }
 
@@ -60,9 +62,9 @@ export async function reviewWithAI(
         if (isRateLimit && attempt <= 3) {
             const jitter = Math.floor(Math.random() * 1000);
             const waitTime = (attempt * 2000) + jitter;
-            console.log(`Rate limit hit for ${fileName}. Retrying in ${waitTime}ms... (Attempt ${attempt})`);
+            logger?.warn("AI", `Rate limit hit for ${fileName}. Retrying in ${waitTime}ms... (Attempt ${attempt})`);
             await new Promise(resolve => setTimeout(resolve, waitTime));
-            return reviewWithAI(fileName, content, customGuidelines, attempt + 1);
+            return reviewWithAI(fileName, content, customGuidelines, attempt + 1, logger);
         }
         throw err;
     }
