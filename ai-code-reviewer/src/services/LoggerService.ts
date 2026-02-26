@@ -1,6 +1,4 @@
 import { InvocationContext } from "@azure/functions";
-import * as fs from "fs";
-import * as path from "path";
 
 /**
  * Log levels supported by the LoggerService.
@@ -25,25 +23,20 @@ export interface LoggerConfig {
 }
 
 /**
- * LoggerService — Unified logging to Azure InvocationContext and file.
+ * LoggerService — Unified logging to Azure InvocationContext.
  *
- * Creates a per-review log file under `logs/{YYYY-MM-DD}/` with a filename
- * derived from the PR identifier. Every log message is written to both the
- * Azure context (visible in Application Insights) and to a local log file
- * for persistent storage and debugging.
+ * Every log message is written to the Azure context
+ * (visible in Application Insights / function logs).
  *
  * Usage:
  * ```ts
  * const logger = LoggerService.create({ context, prIdentifier: "GitHub:owner/repo#1" });
  * logger.info("REVIEW", "Starting review");
  * logger.error("AI", "Failed to get response", error);
- * logger.dispose(); // flush and close the file stream
  * ```
  */
 export class LoggerService {
     private context: InvocationContext;
-    private logFilePath: string | null = null;
-    private fileStream: fs.WriteStream | null = null;
     private enableDebug: boolean;
     private prIdentifier: string;
 
@@ -51,8 +44,6 @@ export class LoggerService {
         this.context = config.context;
         this.prIdentifier = config.prIdentifier;
         this.enableDebug = config.enableDebug ?? false;
-
-        this.initFileLogging(config.prIdentifier);
     }
 
     /**
@@ -100,36 +91,12 @@ export class LoggerService {
         this.log(LogLevel.DEBUG, tag, message);
     }
 
-    // ─── Lifecycle ───────────────────────────────────────────────────
-
-    /**
-     * Flush and close the file stream. Call this when the review is complete.
-     */
-    dispose(): void {
-        if (this.fileStream) {
-            this.fileStream.end();
-            this.fileStream = null;
-        }
-    }
-
-    /**
-     * Returns the path to the current log file, or null if file logging failed to initialize.
-     */
-    getLogFilePath(): string | null {
-        return this.logFilePath;
-    }
-
     // ─── Internal ────────────────────────────────────────────────────
 
     private log(level: LogLevel, tag: string, message: string): void {
         const timestamp = new Date().toISOString();
         const formattedMessage = `${timestamp} [${level}] [${tag}] ${message}`;
-
-        // 1. Log to Azure InvocationContext
         this.logToContext(level, formattedMessage);
-
-        // 2. Log to file
-        this.logToFile(formattedMessage);
     }
 
     private logToContext(level: LogLevel, message: string): void {
@@ -147,56 +114,6 @@ export class LoggerService {
             default:
                 this.context.log(message);
                 break;
-        }
-    }
-
-    private logToFile(message: string): void {
-        if (this.fileStream) {
-            this.fileStream.write(message + "\n");
-        }
-    }
-
-    /**
-     * Initializes file logging.
-     * Creates the log directory structure and opens a write stream.
-     *
-     * Log file path: `logs/{YYYY-MM-DD}/{sanitizedPrId}_{timestamp}.log`
-     */
-    private initFileLogging(prIdentifier: string): void {
-        try {
-            const now = new Date();
-            const dateFolder = now.toISOString().slice(0, 10); // YYYY-MM-DD
-            const timestamp = now.toISOString().replace(/[:.]/g, "-"); // safe for filenames
-
-            // Sanitize the PR identifier for use in a filename
-            const sanitizedId = prIdentifier
-                .replace(/[^a-zA-Z0-9_#-]/g, "_") // replace unsafe chars
-                .replace(/_+/g, "_")                // collapse multiple underscores
-                .substring(0, 80);                   // cap length
-
-            const logDir = path.resolve("logs", dateFolder);
-            fs.mkdirSync(logDir, { recursive: true });
-
-            const logFileName = `${sanitizedId}_${timestamp}.log`;
-            this.logFilePath = path.join(logDir, logFileName);
-            this.fileStream = fs.createWriteStream(this.logFilePath, { flags: "a" });
-
-            // Write a header to the log file
-            const header = [
-                `${"=".repeat(70)}`,
-                `  AI Code Review Log`,
-                `  PR:        ${prIdentifier}`,
-                `  Started:   ${now.toISOString()}`,
-                `${"=".repeat(70)}`,
-                "",
-            ].join("\n");
-            this.fileStream.write(header + "\n");
-
-        } catch (err) {
-            // If file logging fails, continue without it — context logging still works
-            this.context.warn(`[LOGGER] Failed to initialize file logging: ${err instanceof Error ? err.message : err}`);
-            this.fileStream = null;
-            this.logFilePath = null;
         }
     }
 }

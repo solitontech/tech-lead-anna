@@ -17,14 +17,7 @@ export class ReviewService {
             enableDebug: !!process.env.DEBUG,
         });
 
-        try {
-            await this.executeReview(logger);
-        } finally {
-            if (logger.getLogFilePath()) {
-                logger.info("LOG", `Full review log saved to: ${logger.getLogFilePath()}`);
-            }
-            logger.dispose();
-        }
+        await this.executeReview(logger);
     }
 
     private async executeReview(logger: LoggerService): Promise<void> {
