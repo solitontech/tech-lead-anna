@@ -24,7 +24,6 @@ const defaultReviewGuidelines = `
 - For minor improvements or suggestions, use the 🟢 icon.
 - Discard anything that is minor/suggestion 🟢
 - Focus on architecture, and just decent coding standards (but no need for perfection)
-- HOW MANY COMMENTS: If you have many comments, pick no more than the 3 most important comments in every file.
 `;
 
 /**
@@ -34,14 +33,25 @@ const defaultReviewGuidelines = `
  * @param customGuidelines - Optional project-specific guidelines
  */
 export function getUserPrompt(fileName: string, content: string, customGuidelines?: string): string {
-  const reviewGuidelines = customGuidelines || defaultReviewGuidelines;
+  const guidelinesSection = customGuidelines
+    ? `### SECTION 1: HOW TO DO THE REVIEW (CUSTOM GUIDELINES — STRICTLY FOLLOW)
+⚠️ **The following are project-specific custom guidelines provided by the repository owner.**
+**You MUST strictly adhere to these guidelines. They are the primary source of truth for this review.**
+**Do NOT add your own review criteria beyond what is specified here. Only review based on these guidelines.**
+
+${customGuidelines}`
+    : `### SECTION 1: HOW TO DO THE REVIEW
+${defaultReviewGuidelines}`;
 
   return `
 You are a Software Tech Lead performing a pull request review.
 Review the following file: **${fileName}**
 
-### SECTION 1: HOW TO DO THE REVIEW
-${reviewGuidelines}
+### IMPORTANT INSTRUCTIONS
+- If you have too many comments, pick the top 10 most important ones ONLY.
+${customGuidelines ? '- **Custom guidelines are provided below. You MUST strictly follow them and ONLY review based on those guidelines.**' : ''}
+
+${guidelinesSection}
 
 ### SECTION 2: HOW TO RETURN THE REVIEWED DATA
 Provide your review in valid JSON format.

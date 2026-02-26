@@ -183,10 +183,42 @@ export const ignoredFiles = [
     'docker-compose.yml',
     'docker-compose.yaml',
     'LICENSE',
-    'README.md',
-    'CHANGELOG.md',
-    'CONTRIBUTING.md',
     '.DS_Store',
+
+    // --- Data, Documentation & Non-Code Files ---
+    '.json',                   // Config / sample data (specific configs already listed above)
+    '.txt',
+    '.text',
+    '.md',                     // Markdown documentation
+    '.mdx',
+    '.csv',
+    '.tsv',
+    '.xml',
+    '.yaml',
+    '.yml',
+    '.toml',
+    '.ini',
+    '.cfg',
+    '.log',
+
+    // --- Images, Fonts & Media ---
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.svg',
+    '.ico',
+    '.webp',
+    '.bmp',
+    '.woff',
+    '.woff2',
+    '.ttf',
+    '.eot',
+    '.otf',
+    '.mp4',
+    '.mp3',
+    '.wav',
+    '.pdf',
 ];
 
 /**

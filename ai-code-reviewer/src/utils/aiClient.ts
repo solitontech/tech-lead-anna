@@ -19,7 +19,12 @@ export interface AIReviewComment {
  * Performs a code review using the configured AI provider.
  * Includes retry logic for rate limits.
  */
-export async function reviewWithAI(fileName: string, content: string, customGuidelines?: string, attempt: number = 1): Promise<AIReviewComment[]> {
+export async function reviewWithAI(
+    fileName: string,
+    content: string,
+    customGuidelines?: string,
+    attempt: number = 1
+): Promise<AIReviewComment[]> {
     try {
         let rawResponse: string | null = null;
         const envProvider = env.AI_PROVIDER.toLowerCase();
