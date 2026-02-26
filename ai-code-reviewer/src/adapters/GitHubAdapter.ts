@@ -34,8 +34,7 @@ export class GitHubAdapter implements PlatformAdapter {
     }
 
     async validateWebhook(): Promise<boolean> {
-        // Trigger on: new PR, code updates, reopened PR, or when reviewer is assigned
-        const allowedActions = ["opened", "review_requested"];
+        const allowedActions = ["review_requested"];
         return allowedActions.includes(this.payload.action);
     }
 
