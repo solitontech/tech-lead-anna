@@ -39,7 +39,6 @@ export class GitHubAdapter implements PlatformAdapter {
     }
 
     async shouldProcessPR(): Promise<boolean> {
-        // First, check if the bot is assigned as a reviewer
         const { data: pr } = await this.octokit.pulls.get({
             owner: this.owner,
             repo: this.repo,
@@ -48,39 +47,31 @@ export class GitHubAdapter implements PlatformAdapter {
 
         const botName = env.GITHUB_REVIEWER_NAME.toLowerCase().replace(/\s+/g, '-');
 
-        // Check if bot is in requested_reviewers (users or teams)
+        // Check if bot is still in requested_reviewers (analogous to AzDo vote === 0)
+        // Once lockPR() submits a review, the bot is removed from requested_reviewers,
+        // preventing duplicate processing — just like AzDo's vote !== 0 check.
         const isRequestedReviewer = pr.requested_reviewers?.some(
             (reviewer: any) => reviewer.login?.toLowerCase().includes(botName)
         ) || pr.requested_teams?.some(
             (team: any) => team.name?.toLowerCase().includes(botName)
         );
 
-        // If not assigned as reviewer, don't process
         if (!isRequestedReviewer) {
             return false;
         }
 
-        // Second, check if a review by our bot already exists for this head SHA to avoid loops
-        const { data: reviews } = await this.octokit.pulls.listReviews({
-            owner: this.owner,
-            repo: this.repo,
-            pull_number: this.prNumber,
-        });
-
-        const hasReviewed = reviews.some(r =>
-            r.user?.login.toLowerCase().includes(botName) &&
-            r.commit_id === this.headSha
-        );
-
-        return !hasReviewed;
+        return true;
     }
 
     async lockPR(): Promise<void> {
-        // Post a simple comment to indicate processing has started
-        await this.octokit.issues.createComment({
+        // Submit a COMMENT review to "lock" the PR (analogous to AzDo's setPrVote(-5)).
+        // Submitting a review removes the bot from requested_reviewers,
+        // so shouldProcessPR() will return false for concurrent/duplicate triggers.
+        await this.octokit.pulls.createReview({
             owner: this.owner,
             repo: this.repo,
-            issue_number: this.prNumber,
+            pull_number: this.prNumber,
+            event: "COMMENT",
             body: `🤖 **${env.GITHUB_REVIEWER_NAME}** is reviewing this Pull Request...`,
         });
     }
