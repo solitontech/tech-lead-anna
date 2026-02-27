@@ -26,6 +26,16 @@ The application follows an **Adapter Pattern** for easy extension to new platfor
 | **`aiClient.ts`** | Handles multi-LLM communication (OpenAI, Claude, Gemini). |
 | **`codeCleaner.ts`** | Strips out noisy comments for architectural analysis. |
 | **`reviewPrompts.ts`** | Defines the "Tech Lead" persona and review guidelines. |
+| **`LoggerService.ts`** | Unified logging utility directly to Azure InvocationContext with support for tags and log levels. |
+
+---
+
+## Observability & Logging
+
+Tech Lead Anna uses a centralized `LoggerService` that ties directly into Azure's `InvocationContext`. This ensures that all logs, warnings, and errors are captured cleanly in **Azure Application Insights** or the Azure Portal Log Stream.
+
+- **Contextual Logging**: Every log entry is prefixed with a timestamp, severity level (`INFO`, `WARN`, `ERROR`, `DEBUG`), and a context tag (e.g., `[REVIEW]`, `[AI]`, `[FILES]`).
+- **Debugging**: Enable verbose logging by setting the `DEBUG=true` environment variable.
 
 ---
 
@@ -37,6 +47,7 @@ The application follows an **Adapter Pattern** for easy extension to new platfor
 | `AI_API_KEY` | Your API key for the selected AI provider. |
 | `AI_MODEL` | The specific model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`, `gemini-1.5-pro`). |
 | `AI_REVIEW_GUIDELINES`| (Optional) Filename in the repo root containing custom rules (e.g., `.ai-review-rules.md`). Defaults to senior tech lead guidelines if not found. |
+| `DEBUG` | (Optional) Set to `true` to enable verbose debug-level logging. Useful for troubleshooting. |
 
 ### Azure DevOps Specifics
 | Variable | Description |
