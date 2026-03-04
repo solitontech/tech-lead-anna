@@ -31,8 +31,16 @@ const defaultReviewGuidelines = `
  * @param fileName - The name/path of the file being reviewed
  * @param content - The content of the file
  * @param customGuidelines - Optional project-specific guidelines
+ * @param codeMap - Optional structural map of the repository
+ * @param contextFiles - Optional read-only context files (for agentic mode)
  */
-export function getUserPrompt(fileName: string, content: string, customGuidelines?: string): string {
+export function getUserPrompt(
+  fileName: string,
+  content: string,
+  customGuidelines?: string,
+  codeMap?: string,
+  contextFiles?: { fileName: string; content: string }[]
+): string {
   const guidelinesSection = customGuidelines
     ? `### SECTION 1: HOW TO DO THE REVIEW (CUSTOM GUIDELINES — STRICTLY FOLLOW)
 ⚠️ **The following are project-specific custom guidelines provided by the repository owner.**
@@ -42,6 +50,29 @@ export function getUserPrompt(fileName: string, content: string, customGuideline
 ${customGuidelines}`
     : `### SECTION 1: HOW TO DO THE REVIEW
 ${defaultReviewGuidelines}`;
+
+  const codeMapSection = codeMap
+    ? `### REPOSITORY STRUCTURE (Read-Only Reference)
+Use this to understand the broader codebase architecture. Do NOT review these files — only use them as context.
+
+\`\`\`
+${codeMap}
+\`\`\`
+
+`
+    : '';
+
+  const contextSection = contextFiles && contextFiles.length > 0
+    ? `### ADDITIONAL CONTEXT FILES (Read-Only — Do NOT review these)
+These files were requested for additional context. Use them to understand the codebase but do NOT generate review comments for them.
+
+${contextFiles.map(f => `#### CONTEXT: ${f.fileName}
+\`\`\`
+${f.content}
+\`\`\``).join('\n\n')}
+
+`
+    : '';
 
   return `
 You are a Software Tech Lead performing a pull request review.
@@ -53,7 +84,7 @@ ${customGuidelines ? '- **Custom guidelines are provided below. You MUST strictl
 
 ${guidelinesSection}
 
-### SECTION 2: HOW TO RETURN THE REVIEWED DATA
+${codeMapSection}${contextSection}### SECTION 2: HOW TO RETURN THE REVIEWED DATA
 Provide your review in valid JSON format.
 The output should be a JSON object with a single key "reviews" which is an array of objects.
 

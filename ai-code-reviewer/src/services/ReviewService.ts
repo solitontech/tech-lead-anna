@@ -5,6 +5,7 @@ import { shouldIgnoreFile } from "../config/ignoreFiles";
 import { cleanCodeContent } from "../utils/codeCleaner";
 import { env } from "../config/envVariables";
 import { estimateTokens, getMaxBatchTokens } from "../utils/tokenEstimator";
+import { generateCodeMap } from "../utils/codeMapGenerator";
 
 export class ReviewService {
     constructor(private platform: PlatformAdapter) { }
@@ -103,6 +104,25 @@ export class ReviewService {
 
         // Phase 2: AI Review — batch or per-file depending on CONTEXT_MODE and token budget
         if (reviewableFiles.length > 0) {
+            let codeMap: string | undefined = undefined;
+
+            if (contextMode === 'codemap' || contextMode === 'agentic') {
+                if (this.platform.getRepoFilePaths) {
+                    try {
+                        context.log(`[CONTEXT] Generating code map for repository`);
+                        const allPaths = await this.platform.getRepoFilePaths(files[0].commitId);
+                        codeMap = await generateCodeMap(files[0].commitId, allPaths, async (path) => {
+                            return await this.platform.getFileContent(path, files[0].commitId);
+                        });
+                        context.log(`[CONTEXT] Code map generated (${codeMap.split('\n').length} lines)`);
+                    } catch (err: any) {
+                        context.log(`[CONTEXT] Failed to generate code map: ${err.message}`);
+                    }
+                } else {
+                    context.log(`[CONTEXT] Platform adapter does not support getRepoFilePaths. Skipping code map.`);
+                }
+            }
+
             if (isBatchMode) {
                 const totalContent = reviewableFiles.map(f => f.content).join('\n');
                 const estimatedTokens = estimateTokens(totalContent);
@@ -112,7 +132,7 @@ export class ReviewService {
                     // Batch review: send all files in one prompt
                     context.log(`[AI] Batch reviewing ${reviewableFiles.length} files (~${estimatedTokens} tokens, budget: ${maxTokens})`);
                     try {
-                        const aiReviews = await reviewBatchWithAI(reviewableFiles, repoGuidelines);
+                        const aiReviews = await reviewBatchWithAI(reviewableFiles, repoGuidelines, codeMap);
                         if (aiReviews.length > 0) {
                             hasIssues = true;
                             for (const review of aiReviews) {
@@ -131,18 +151,18 @@ export class ReviewService {
                     } catch (err: any) {
                         context.error(`[AI] Batch review failed, falling back to per-file review: ${err.message}`);
                         // Fall back to per-file review
-                        await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, allComments, context);
+                        await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, codeMap, allComments, context);
                         hasIssues = hasIssues || allComments.length > 0;
                     }
                 } else {
                     // Token budget exceeded — fall back to per-file review
                     context.log(`[AI] Batch too large (~${estimatedTokens} tokens, budget: ${maxTokens}), falling back to per-file review`);
-                    await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, allComments, context);
+                    await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, codeMap, allComments, context);
                     hasIssues = hasIssues || allComments.length > 0;
                 }
             } else {
                 // No CONTEXT_MODE set — per-file review (original behavior)
-                await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, allComments, context);
+                await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, codeMap, allComments, context);
                 hasIssues = hasIssues || allComments.length > 0;
             }
         }
@@ -173,13 +193,14 @@ export class ReviewService {
     private async reviewFilesIndividually(
         files: { fileName: string; content: string }[],
         repoGuidelines: string | null,
+        codeMap: string | undefined,
         allComments: { filePath: string; startLine?: number; endLine?: number; severity: string; comment: string }[],
         context: InvocationContext
     ): Promise<void> {
         for (const file of files) {
             try {
                 context.log(`[AI] Reviewing file: ${file.fileName}`);
-                const aiReviews = await reviewWithAI(file.fileName, file.content, repoGuidelines);
+                const aiReviews = await reviewWithAI(file.fileName, file.content, repoGuidelines, codeMap);
                 if (aiReviews.length > 0) {
                     for (const review of aiReviews) {
                         allComments.push({
