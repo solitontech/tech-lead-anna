@@ -17,6 +17,8 @@ export const env = {
     AZDO_REVIEWER_NAME: process.env.AZDO_REVIEWER_NAME,
     GITHUB_REVIEWER_NAME: process.env.GITHUB_REVIEWER_NAME,
     AI_REVIEW_GUIDELINES: process.env.AI_REVIEW_GUIDELINES,
+    ENABLE_CODE_CLEANING: process.env.ENABLE_CODE_CLEANING,
+    MAX_REVIEW_COMMENTS: process.env.MAX_REVIEW_COMMENTS,
 
     // GitHub App Configuration
     GITHUB_APP_ID: process.env.GITHUB_APP_ID,

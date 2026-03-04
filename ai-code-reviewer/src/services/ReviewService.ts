@@ -59,7 +59,7 @@ export class ReviewService {
 
         let hasRedFlags = false;
         let hasIssues = false;
-        const MAX_REVIEW_COMMENTS = 15;
+        const MAX_REVIEW_COMMENTS = env.MAX_REVIEW_COMMENTS ? parseInt(env.MAX_REVIEW_COMMENTS, 10) : undefined;
         const SEVERITY_PRIORITY: Record<string, number> = { critical: 0, major: 1, minor: 2 };
 
         // Collect all comments from all files first
@@ -73,7 +73,8 @@ export class ReviewService {
 
             try {
                 const content = await this.platform.getFileContent(file.path, file.commitId);
-                const cleanedContent = cleanCodeContent(content, file.path);
+                const isCleaningEnabled = String(env.ENABLE_CODE_CLEANING).toLowerCase() === 'true';
+                const cleanedContent = isCleaningEnabled ? cleanCodeContent(content, file.path) : content;
                 const cleanedLineCount = cleanedContent.split('\n').length;
 
                 const isMarkdown = file.path.toLowerCase().endsWith('.md');
@@ -113,9 +114,12 @@ export class ReviewService {
         // Sort by severity priority (critical first, then major, then minor)
         allComments.sort((a, b) => (SEVERITY_PRIORITY[a.severity] ?? 3) - (SEVERITY_PRIORITY[b.severity] ?? 3));
 
-        // Post only the top N most critical comments
-        const topComments = allComments.slice(0, MAX_REVIEW_COMMENTS);
-        context.log(`[REVIEW] Collected ${allComments.length} total comments, posting top ${topComments.length}`);
+        // Post only the top N most critical comments or post all if no limit
+        const topComments = MAX_REVIEW_COMMENTS !== undefined
+            ? allComments.slice(0, MAX_REVIEW_COMMENTS)
+            : allComments;
+
+        context.log(`[REVIEW] Collected ${allComments.length} total comments, posting ${topComments.length}`);
 
         for (const comment of topComments) {
             await this.platform.postComment(comment.filePath, comment.startLine, comment.endLine, comment.comment);
