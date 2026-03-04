@@ -1,9 +1,10 @@
 import { InvocationContext } from "@azure/functions";
 import { PlatformAdapter, ReviewStatus } from "../interfaces/PlatformAdapter";
-import { reviewWithAI } from "../utils/aiClient";
+import { reviewWithAI, reviewBatchWithAI } from "../utils/aiClient";
 import { shouldIgnoreFile } from "../config/ignoreFiles";
 import { cleanCodeContent } from "../utils/codeCleaner";
 import { env } from "../config/envVariables";
+import { estimateTokens, getMaxBatchTokens } from "../utils/tokenEstimator";
 
 export class ReviewService {
     constructor(private platform: PlatformAdapter) { }
@@ -61,9 +62,14 @@ export class ReviewService {
         let hasIssues = false;
         const MAX_REVIEW_COMMENTS = env.MAX_REVIEW_COMMENTS ? parseInt(env.MAX_REVIEW_COMMENTS, 10) : undefined;
         const SEVERITY_PRIORITY: Record<string, number> = { critical: 0, major: 1, minor: 2 };
+        const contextMode = env.CONTEXT_MODE?.toLowerCase();
+        const isBatchMode = contextMode === 'batch' || contextMode === 'codemap' || contextMode === 'agentic';
 
         // Collect all comments from all files first
         const allComments: { filePath: string; startLine?: number; endLine?: number; severity: string; comment: string }[] = [];
+
+        // Phase 1: Fetch all file contents and run pre-checks
+        const reviewableFiles: { fileName: string; content: string }[] = [];
 
         for (const file of files) {
             if (shouldIgnoreFile(file.path)) {
@@ -87,28 +93,58 @@ export class ReviewService {
                     });
                     context.log(`[REVIEW] File ${file.path} exceeds 1000 lines — red flag added`);
                 } else {
-                    context.log(`[AI] Reviewing file: ${file.path} (${cleanedLineCount} lines)`);
-                    const aiReviews = await reviewWithAI(file.path, content, repoGuidelines);
-                    if (aiReviews.length > 0) {
-                        hasIssues = true;
-                        for (const review of aiReviews) {
-                            allComments.push({
-                                filePath: file.path,
-                                startLine: review.startLine,
-                                endLine: review.endLine,
-                                severity: review.severity,
-                                comment: review.comment
-                            });
-                        }
-                        context.log(`[AI] Found ${aiReviews.length} issues in ${file.path}`);
-                    } else {
-                        context.log(`[AI] No issues found in ${file.path}`);
-                    }
+                    // Add to reviewable files for AI review
+                    reviewableFiles.push({ fileName: file.path, content });
                 }
             } catch (err: any) {
-                context.error(`[REVIEW] Failed to review ${file.path}: ${err.message}`);
+                context.error(`[REVIEW] Failed to fetch ${file.path}: ${err.message}`);
             }
-            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Phase 2: AI Review — batch or per-file depending on CONTEXT_MODE and token budget
+        if (reviewableFiles.length > 0) {
+            if (isBatchMode) {
+                const totalContent = reviewableFiles.map(f => f.content).join('\n');
+                const estimatedTokens = estimateTokens(totalContent);
+                const maxTokens = getMaxBatchTokens(env.MAX_BATCH_TOKENS);
+
+                if (estimatedTokens <= maxTokens) {
+                    // Batch review: send all files in one prompt
+                    context.log(`[AI] Batch reviewing ${reviewableFiles.length} files (~${estimatedTokens} tokens, budget: ${maxTokens})`);
+                    try {
+                        const aiReviews = await reviewBatchWithAI(reviewableFiles, repoGuidelines);
+                        if (aiReviews.length > 0) {
+                            hasIssues = true;
+                            for (const review of aiReviews) {
+                                allComments.push({
+                                    filePath: review.filePath || reviewableFiles[0].fileName,
+                                    startLine: review.startLine,
+                                    endLine: review.endLine,
+                                    severity: review.severity,
+                                    comment: review.comment
+                                });
+                            }
+                            context.log(`[AI] Batch review found ${aiReviews.length} issues across ${reviewableFiles.length} files`);
+                        } else {
+                            context.log(`[AI] Batch review found no issues`);
+                        }
+                    } catch (err: any) {
+                        context.error(`[AI] Batch review failed, falling back to per-file review: ${err.message}`);
+                        // Fall back to per-file review
+                        await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, allComments, context);
+                        hasIssues = hasIssues || allComments.length > 0;
+                    }
+                } else {
+                    // Token budget exceeded — fall back to per-file review
+                    context.log(`[AI] Batch too large (~${estimatedTokens} tokens, budget: ${maxTokens}), falling back to per-file review`);
+                    await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, allComments, context);
+                    hasIssues = hasIssues || allComments.length > 0;
+                }
+            } else {
+                // No CONTEXT_MODE set — per-file review (original behavior)
+                await this.reviewFilesIndividually(reviewableFiles, repoGuidelines, allComments, context);
+                hasIssues = hasIssues || allComments.length > 0;
+            }
         }
 
         // Sort by severity priority (critical first, then major, then minor)
@@ -128,5 +164,40 @@ export class ReviewService {
         const status: ReviewStatus = hasRedFlags ? 'changes_requested' : hasIssues ? 'commented' : 'approved';
         await this.platform.setFinalStatus(status);
         context.log(`[FINAL] Review completed with status: ${status}`);
+    }
+
+    /**
+     * Reviews files individually (one AI call per file).
+     * Used as default mode or as fallback when batch mode exceeds token budget.
+     */
+    private async reviewFilesIndividually(
+        files: { fileName: string; content: string }[],
+        repoGuidelines: string | null,
+        allComments: { filePath: string; startLine?: number; endLine?: number; severity: string; comment: string }[],
+        context: InvocationContext
+    ): Promise<void> {
+        for (const file of files) {
+            try {
+                context.log(`[AI] Reviewing file: ${file.fileName}`);
+                const aiReviews = await reviewWithAI(file.fileName, file.content, repoGuidelines);
+                if (aiReviews.length > 0) {
+                    for (const review of aiReviews) {
+                        allComments.push({
+                            filePath: file.fileName,
+                            startLine: review.startLine,
+                            endLine: review.endLine,
+                            severity: review.severity,
+                            comment: review.comment
+                        });
+                    }
+                    context.log(`[AI] Found ${aiReviews.length} issues in ${file.fileName}`);
+                } else {
+                    context.log(`[AI] No issues found in ${file.fileName}`);
+                }
+            } catch (err: any) {
+                context.error(`[REVIEW] Failed to review ${file.fileName}: ${err.message}`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
     }
 }
