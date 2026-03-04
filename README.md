@@ -291,10 +291,10 @@ Includes everything from **batch**, plus:
 
 Includes everything from **codemap**, plus:
 
-1. **Pass 1 — Planning:** The system sends the AI two things: (a) the list of changed file paths in the PR, and (b) a list of *every file path* in the repository. It then asks: *"Based on these changes, which other files from this repository would you need to read to do a thorough code review? Return a JSON array of file paths (maximum 10)."*
-2. The AI analyzes the PR file names and the repo structure and responds with a targeted list. For example, if the PR modifies `src/auth/loginHandler.ts`, the AI might request `src/auth/authMiddleware.ts`, `src/config/authConfig.ts`, and `tests/auth/login.test.ts`.
-3. **Pass 2 — Review:** The system fetches the requested files and includes them as **read-only context** alongside the changed files and code map. The AI then performs the full review with all the context it asked for.
-4. If the planning call fails for any reason (rate limit, parsing error, etc.), the system falls back to `codemap` mode.
+1. **Pass 1 — Planning:** The system sends the AI two things: (a) the content of all changed files in the PR, and (b) the **structural code map** generated in phase 2. It then asks: *"Based on the code changed in the PR and the repository structure, determine if you need to read the full source code of any other files in the repository to properly review this PR. Return a JSON array of file paths (maximum 5)."*
+2. The AI analyzes the PR changes alongside the repository's structural outline (which shows what classes/functions exist everywhere else), and responds with a targeted list of files it needs to read in full.
+3. **Pass 2 — Review:** The system fetches the full source code for the requested files and includes them as **read-only context** alongside the PR changes and the code map. The AI then performs the full review with all the deep context it asked for.
+4. If the planning call fails for any reason (rate limit, parsing error, etc.), the system gracefully falls back to `codemap` mode.
 
 **Example:** A PR updates the password hashing logic in `auth/passwordService.ts`. The AI requests `auth/loginHandler.ts` (to check if login still works with the new hashing), `tests/auth/password.test.ts` (to check if tests cover the change), and `config/security.ts` (to verify the hash algorithm matches the config). None of these were directly imported by the changed file.
 
