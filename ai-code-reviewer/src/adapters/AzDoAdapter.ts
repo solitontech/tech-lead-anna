@@ -85,6 +85,28 @@ export class AzDoAdapter implements PlatformAdapter {
         return res.data.content || "";
     }
 
+    async getRepoFilePaths(commitId: string): Promise<string[]> {
+        const encodedProject = encodeURIComponent(this.project);
+        const res = await azdo.get<any>(
+            `/${encodedProject}/_apis/git/repositories/${this.repoId}/items`,
+            {
+                params: {
+                    recursionLevel: 'Full',
+                    versionDescriptor: {
+                        versionType: 'Commit',
+                        version: commitId
+                    },
+                    'api-version': '7.1'
+                }
+            }
+        );
+
+        const items = res.data.value || [];
+        return items
+            .filter((item: any) => !item.isFolder)
+            .map((item: any) => item.path);
+    }
+
     async postComment(path: string, startLine: number | undefined, endLine: number | undefined, comment: string): Promise<void> {
         await postReview(this.project, this.repoId, this.prId, comment, path, startLine, endLine);
     }

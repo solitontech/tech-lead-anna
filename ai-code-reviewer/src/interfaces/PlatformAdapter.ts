@@ -12,6 +12,7 @@ export interface PlatformAdapter {
     lockPR(): Promise<void>;
     getChangedFiles(): Promise<FileChange[]>;
     getFileContent(path: string, commitId: string): Promise<string>;
+    getRepoFilePaths?(commitId: string): Promise<string[]>;
     postComment(path: string, startLine: number | undefined, endLine: number | undefined, comment: string): Promise<void>;
     setFinalStatus(status: ReviewStatus): Promise<void>;
     getPRIdentifier(): string;

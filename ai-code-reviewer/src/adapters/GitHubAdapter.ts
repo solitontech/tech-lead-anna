@@ -103,6 +103,19 @@ export class GitHubAdapter implements PlatformAdapter {
         return "";
     }
 
+    async getRepoFilePaths(commitId: string): Promise<string[]> {
+        const { data: tree } = await this.octokit.git.getTree({
+            owner: this.owner,
+            repo: this.repo,
+            tree_sha: commitId,
+            recursive: 'true'
+        });
+
+        return tree.tree
+            .filter((item: any) => item.type === 'blob')
+            .map((item: any) => item.path);
+    }
+
     async postComment(path: string, startLine: number | undefined, endLine: number | undefined, comment: string): Promise<void> {
         if (endLine && endLine > 0) {
             try {
