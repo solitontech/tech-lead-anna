@@ -37,6 +37,10 @@ The application follows an **Adapter Pattern** for easy extension to new platfor
 | `AI_API_KEY` | Your API key for the selected AI provider. |
 | `AI_MODEL` | The specific model to use (e.g., `gpt-4o`, `claude-3-5-sonnet`, `gemini-1.5-pro`). |
 | `AI_REVIEW_GUIDELINES`| (Optional) Filename in the repo root containing custom rules (e.g., `.ai-review-rules.md`). Defaults to senior tech lead guidelines if not found. |
+| `ENABLE_CODE_CLEANING`| (Optional) Set to `true` to strip large comment blocks (e.g., Swagger docs, docstrings) before calculating file size for the 1000-line red flag check. Defaults to `false` (no cleaning). |
+| `MAX_REVIEW_COMMENTS` | (Optional) Maximum number of review comments posted per PR (e.g., `15`). Comments are sorted by severity (critical → major → minor) and only the top N are posted. If not set, all comments are posted with no limit. |
+| `CONTEXT_MODE` | (Optional) Controls how much context the AI receives. One of: `batch`, `codemap`, or `agentic`. See [Advanced Context Awareness](#advanced-context-awareness) for details. If not set, the system reviews each file independently. |
+| `MAX_BATCH_TOKENS` | (Optional) Maximum token budget for batched prompts (default: 60,000). If the combined size of changed files exceeds this, the system falls back to per-file review. Only applies when `CONTEXT_MODE` is set. |
 
 ### Azure DevOps Specifics
 | Variable | Description |
@@ -236,6 +240,63 @@ You can customize the reviewer's behavior per repository without changing any en
 2.  Add that file to your repository root.
 3.  Tech Lead Anna will fetch this file at runtime use those instructions.
 4.  If no custom instructions are provided, then the AI reviewer will use the default instructions provided in the `reviewPromots.ts` file.
+
+---
+
+## Advanced Context Awareness
+
+By default, Tech Lead Anna reviews each file in a PR independently. The `CONTEXT_MODE` environment variable enables progressively smarter context strategies, controlled by a single setting:
+
+| `CONTEXT_MODE` | What the AI sees |
+| :--- | :--- |
+| *(not set)* | Each file reviewed one at a time (default) |
+| `batch` | All changed files together in one prompt |
+| `codemap` | All changed files + a structural outline of the entire repo |
+| `agentic` | All changed files + repo outline + full source of files the AI requests |
+
+Each level includes everything from the levels above it.
+
+### 1. Batch (`CONTEXT_MODE=batch`)
+
+1. When a PR is triggered, the system fetches the content of every changed file (as it normally does).
+2. All changed files are **concatenated into a single prompt**, with clear separators (e.g., `### FILE: src/services/UserService.ts`).
+3. The AI receives the entire PR in one shot and reviews all files together, producing comments that reference specific files and line numbers.
+4. If the total size of all changed files exceeds the configured token budget (`MAX_BATCH_TOKENS`, default: 60,000), the system automatically falls back to per-file review to avoid hitting API limits.
+
+**Example:** A PR changes both an interface (`IUser` in `types.ts`) and its implementation (`UserService.ts`). In batch mode, the AI sees both files together and can verify that the implementation matches the updated interface.
+
+### 2. Code Map (`CONTEXT_MODE=codemap`)
+
+Includes everything from **batch**, plus:
+
+1. The system fetches a list of **all file paths** in the repository (via the GitHub/AzDo tree API).
+2. For each file, it extracts a **lightweight outline** — just the exports, class names, function signatures (name, parameters, return types), and interface definitions. No function bodies or implementation details.
+3. This produces a compact "code map" that looks like:
+   ```
+   === src/services/UserService.ts ===
+   class UserService
+     getUser(id: string): Promise<User>
+     createUser(data: CreateUserDTO): Promise<User>
+
+   === src/interfaces/User.ts ===
+   interface User { id: string; name: string; email: string }
+   interface CreateUserDTO { name: string; email: string }
+   ```
+4. This code map is included in the AI prompt as a **read-only reference section**, clearly labelled so the AI does not generate review comments for it.
+5. The AI can now see what exists across the entire codebase — what functions are available, what parameters they expect, and what interfaces they conform to — without the cost of sending every file's full source code.
+
+**Example:** A PR adds a new service that calls `DatabaseClient.query()`. The code map shows the AI that `DatabaseClient.query()` expects `(sql: string, params: any[])`, so it can verify the call site uses the correct arguments — even though `DatabaseClient.ts` was not changed in the PR.
+
+### 3. Agentic (`CONTEXT_MODE=agentic`)
+
+Includes everything from **codemap**, plus:
+
+1. **Pass 1 — Planning:** The system sends the AI two things: (a) the list of changed file paths in the PR, and (b) a list of *every file path* in the repository. It then asks: *"Based on these changes, which other files from this repository would you need to read to do a thorough code review? Return a JSON array of file paths (maximum 10)."*
+2. The AI analyzes the PR file names and the repo structure and responds with a targeted list. For example, if the PR modifies `src/auth/loginHandler.ts`, the AI might request `src/auth/authMiddleware.ts`, `src/config/authConfig.ts`, and `tests/auth/login.test.ts`.
+3. **Pass 2 — Review:** The system fetches the requested files and includes them as **read-only context** alongside the changed files and code map. The AI then performs the full review with all the context it asked for.
+4. If the planning call fails for any reason (rate limit, parsing error, etc.), the system falls back to `codemap` mode.
+
+**Example:** A PR updates the password hashing logic in `auth/passwordService.ts`. The AI requests `auth/loginHandler.ts` (to check if login still works with the new hashing), `tests/auth/password.test.ts` (to check if tests cover the change), and `config/security.ts` (to verify the hash algorithm matches the config). None of these were directly imported by the changed file.
 
 ---
 
