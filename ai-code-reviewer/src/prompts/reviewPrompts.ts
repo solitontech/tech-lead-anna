@@ -192,3 +192,46 @@ If all the files look good, return an empty array: { "reviews": [] }
 ${filesSectionParts.join('\n\n')}
 `;
 }
+
+/**
+ * Agentic planning prompt - asks the AI what files it needs to read for context
+ * @param files - Array of changed PR files
+ * @param codeMap - Structural map of the repository
+ */
+export function getPlanningPrompt(
+  files: { fileName: string; content: string }[],
+  codeMap: string
+): string {
+  const filesSectionParts = files.map(f => `### FILE: ${f.fileName}
+\`\`\`
+${f.content}
+\`\`\``);
+
+  return `
+You are a Software Tech Lead preparing to review a Pull Request.
+Before you write any review comments, you need to understand the context.
+
+You have access to the following ${files.length} files that were changed in this PR:
+${files.map(f => `- ${f.fileName}`).join('\n')}
+
+You also have a structural map of the entire repository:
+### REPOSITORY STRUCTURE
+\`\`\`
+${codeMap}
+\`\`\`
+
+### FILES IN PULL REQUEST
+${filesSectionParts.join('\n\n')}
+
+### YOUR TASK
+Based on the code changed in the PR and the repository structure, determine if you need to read the full source code of any other files in the repository to properly review this PR.
+
+For example, if a PR modifies a function call to a database service, but the implementation of the database service is NOT in the PR, you should request to read the database service file so you know what it does.
+
+Provide your output in valid JSON format.
+The output MUST be a JSON object with a single key "requestedFiles" which is an array of strings (the exact file paths from the repository structure).
+
+If you do NOT need any additional files (the PR is self-contained or simple enough), return an empty array: { "requestedFiles": [] }
+Limit your request to a maximum of 5 files to avoid overwhelming the context window.
+`;
+}
