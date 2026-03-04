@@ -20,6 +20,10 @@ export const env = {
     ENABLE_CODE_CLEANING: process.env.ENABLE_CODE_CLEANING,
     MAX_REVIEW_COMMENTS: process.env.MAX_REVIEW_COMMENTS,
 
+    // Context Awareness Configuration
+    CONTEXT_MODE: process.env.CONTEXT_MODE,
+    MAX_BATCH_TOKENS: process.env.MAX_BATCH_TOKENS,
+
     // GitHub App Configuration
     GITHUB_APP_ID: process.env.GITHUB_APP_ID,
     GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n'),

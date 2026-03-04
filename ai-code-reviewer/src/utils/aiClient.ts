@@ -9,6 +9,7 @@ import { AIProvider, PROVIDER_MAPPING } from "../types/providers";
  * AI Review Comment Interface
  */
 export interface AIReviewComment {
+    filePath?: string;
     startLine: number;
     endLine: number;
     severity: string;
