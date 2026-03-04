@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { systemPrompt, getUserPrompt, getBatchedUserPrompt } from "../prompts/reviewPrompts";
+import { systemPrompt, getUserPrompt, getBatchedUserPrompt, getPlanningPrompt } from "../prompts/reviewPrompts";
 import { env } from "../config/envVariables";
 import { AIProvider, PROVIDER_MAPPING } from "../types/providers";
 
@@ -123,6 +123,63 @@ export async function reviewBatchWithAI(
             return reviewBatchWithAI(files, customGuidelines, codeMap, contextFiles, attempt + 1);
         }
         throw err;
+    }
+}
+
+/**
+ * Agentic Context Planning
+ * Asks the AI what files it needs to read to understand the PR context.
+ */
+export async function planReviewContext(
+    files: { fileName: string; content: string }[],
+    codeMap: string,
+    attempt: number = 1
+): Promise<string[]> {
+    try {
+        let rawResponse: string | null = null;
+        const envProvider = env.AI_PROVIDER.toLowerCase();
+        const provider = PROVIDER_MAPPING[envProvider];
+        const prompt = getPlanningPrompt(files, codeMap);
+
+        if (provider === AIProvider.OPENAI) {
+            rawResponse = await callOpenAI(prompt);
+        } else if (provider === AIProvider.ANTHROPIC) {
+            rawResponse = await callClaude(prompt);
+        } else if (provider === AIProvider.GOOGLE) {
+            rawResponse = await callGemini(prompt);
+        } else {
+            throw new Error(`Unsupported AI provider: ${envProvider}`);
+        }
+
+        if (!rawResponse) return [];
+
+        try {
+            const cleanedJson = rawResponse.replace(/```json/g, "").replace(/```/g, "").trim();
+            const parsed = JSON.parse(cleanedJson);
+
+            if (parsed.requestedFiles && Array.isArray(parsed.requestedFiles)) {
+                return parsed.requestedFiles.filter((f: any) => typeof f === 'string');
+            }
+            return [];
+        } catch (parseErr) {
+            console.error(`Failed to parse ${provider} planning JSON response`, parseErr);
+            console.debug("Raw content:", rawResponse);
+            return [];
+        }
+
+    } catch (err: any) {
+        const isRateLimit = err.status === 429 || err.statusCode === 429 || (err.message && err.message.includes("429"));
+
+        if (isRateLimit && attempt <= 3) {
+            const jitter = Math.floor(Math.random() * 1000);
+            const waitTime = (attempt * 2000) + jitter;
+            console.log(`Rate limit hit for context planning. Retrying in ${waitTime}ms... (Attempt ${attempt})`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            return planReviewContext(files, codeMap, attempt + 1);
+        }
+
+        console.error("Agentic planning failed, falling back to codemap only", err.message);
+        return []; // Fall back to empty requested files
     }
 }
 
