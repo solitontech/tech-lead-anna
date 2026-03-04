@@ -75,3 +75,89 @@ ${content}
 \`\`\`
 `;
 }
+
+/**
+ * Batched user prompt template - reviews multiple files in a single prompt
+ * @param files - Array of files with their names and content
+ * @param customGuidelines - Optional project-specific guidelines
+ * @param codeMap - Optional structural map of the repository
+ * @param contextFiles - Optional read-only context files (for agentic mode)
+ */
+export function getBatchedUserPrompt(
+  files: { fileName: string; content: string }[],
+  customGuidelines?: string,
+  codeMap?: string,
+  contextFiles?: { fileName: string; content: string }[]
+): string {
+  const guidelinesSection = customGuidelines
+    ? `### SECTION 1: HOW TO DO THE REVIEW (CUSTOM GUIDELINES — STRICTLY FOLLOW)
+⚠️ **The following are project-specific custom guidelines provided by the repository owner.**
+**You MUST strictly adhere to these guidelines. They are the primary source of truth for this review.**
+**Do NOT add your own review criteria beyond what is specified here. Only review based on these guidelines.**
+
+${customGuidelines}`
+    : `### SECTION 1: HOW TO DO THE REVIEW
+${defaultReviewGuidelines}`;
+
+  const filesSectionParts = files.map(f => `### FILE: ${f.fileName}
+\`\`\`
+${f.content}
+\`\`\``);
+
+  const codeMapSection = codeMap
+    ? `### REPOSITORY STRUCTURE (Read-Only Reference)
+Use this to understand the broader codebase architecture. Do NOT review these files — only use them as context.
+
+\`\`\`
+${codeMap}
+\`\`\`
+
+`
+    : '';
+
+  const contextSection = contextFiles && contextFiles.length > 0
+    ? `### ADDITIONAL CONTEXT FILES (Read-Only — Do NOT review these)
+These files were requested for additional context. Use them to understand the codebase but do NOT generate review comments for them.
+
+${contextFiles.map(f => `#### CONTEXT: ${f.fileName}
+\`\`\`
+${f.content}
+\`\`\``).join('\n\n')}
+
+`
+    : '';
+
+  return `
+You are a Software Tech Lead performing a pull request review.
+Review the following ${files.length} files from a Pull Request:
+
+### IMPORTANT INSTRUCTIONS
+- Review ALL files in this PR together, considering cross-file relationships.
+- If you have too many comments, pick the top 10 most important ones ONLY.
+- Each comment MUST include the filePath of the file it refers to.
+${customGuidelines ? '- **Custom guidelines are provided below. You MUST strictly follow them and ONLY review based on those guidelines.**' : ''}
+
+${guidelinesSection}
+
+${codeMapSection}${contextSection}### SECTION 2: HOW TO RETURN THE REVIEWED DATA
+Provide your review in valid JSON format.
+The output should be a JSON object with a single key "reviews" which is an array of objects.
+
+Each object should have:
+- "filePath": The path of the file the comment refers to.
+- "startLine": The start line number where the issue is located (1-based integer).
+- "endLine": The end line number where the issue is located (1-based integer).
+- "severity": One of "critical", "major", "minor".
+- "comment": The review comment (include the appropriate severity icon).
+
+Before returning the comments double check each line number against
+each comment to ensure it's right. If not then find the right start and end lines and update
+the line numbers.
+
+If all the files look good, return an empty array: { "reviews": [] }
+
+### SECTION 3: FILES TO REVIEW
+
+${filesSectionParts.join('\n\n')}
+`;
+}
